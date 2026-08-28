@@ -64,10 +64,15 @@ const createdGame = await requestJson("/api/v1/me/games", {
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ title: `실시간 퀴즈 검증 ${Date.now()}`, template: "LOOP_24", skin: "CAMPUS" }),
 });
+await requestJson(`/api/v1/games/${createdGame.game.id}`, {
+  method: "PUT",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ playMode: "TEAM", teamCount: 2 }),
+});
 await requestJson(`/api/v1/games/${createdGame.game.id}/questions`, {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ type: "SHORT_ANSWER", prompt: "정조가 설치한 왕실 도서관은?", correctAnswer: "규장각", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 5 }),
+  body: JSON.stringify({ type: "SHORT_ANSWER", prompt: "정조가 설치한 왕실 도서관은?", correctAnswer: "규장각", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 5, answerMode: "ALL" }),
 });
 
 const hostSession = await requestJson("/api/v1/rooms", {
@@ -75,10 +80,13 @@ const hostSession = await requestJson("/api/v1/rooms", {
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ gameId: createdGame.game.id }),
 });
+const roomLookup = await requestJson(`/api/v1/rooms/join?code=${hostSession.room.code}`);
+assert.equal(roomLookup.room.playMode, "TEAM");
+assert.equal(roomLookup.room.teamCount, 2);
 const playerSession = await requestJson("/api/v1/rooms/join", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ code: hostSession.room.code, nickname: "통합테스트" }),
+  body: JSON.stringify({ code: hostSession.room.code, nickname: "통합테스트", teamNumber: 2 }),
 });
 
 const host = await connect(hostSession.realtime.websocketPath);
@@ -91,8 +99,8 @@ try {
   const started = await host.waitFor((state) => state.status === "PLAYING");
   assert.equal(started.currentPlayerId, hostSession.participant.id);
   let state = started;
-  let quizTimedOut = false;
-  for (let attempt = 0; attempt < 24 && !quizTimedOut; attempt += 1) {
+  let groupQuizTimedOut = false;
+  for (let attempt = 0; attempt < 24 && !groupQuizTimedOut; attempt += 1) {
     const actor = state.currentPlayerId === hostSession.participant.id ? host : player;
     actor.socket.send(JSON.stringify({ type: "ROLL_DICE", actionId: crypto.randomUUID(), expectedVersion: state.version }));
     state = await host.waitFor((next) => next.version > state.version);
@@ -100,12 +108,20 @@ try {
     assert.equal(mirrored.lastRoll, state.lastRoll);
     if (state.phase !== "WAITING_FOR_ANSWER") continue;
     assert.equal("correctAnswer" in state.activeQuestion, false, "Active state must not leak the answer");
+    assert.equal(state.activeQuestion.answerMode, "ALL");
+    assert.equal(state.expectedResponderIds.length, 2);
+    host.socket.send(JSON.stringify({ type: "ANSWER_QUESTION", actionId: crypto.randomUUID(), answer: "규장각", expectedVersion: state.version }));
+    state = await host.waitFor((next) => next.version > state.version && next.lastEvent.type === "ANSWER_SUBMITTED");
+    assert.deepEqual(state.submittedPlayerIds, [hostSession.participant.id]);
+    assert.equal("submittedAnswer" in state, false, "Submitted answers must remain private in Durable Object storage");
     state = await host.waitFor((next) => next.version > state.version && next.lastEvent.type === "QUESTION_ANSWERED", 8_000);
-    assert.equal(state.lastAnswer.correct, false);
-    assert.equal(state.lastAnswer.timedOut, true);
-    quizTimedOut = true;
+    assert.equal(state.lastGroupResult.correctCount, 1);
+    assert.equal(state.lastGroupResult.timedOut, true);
+    assert.equal(state.teamScores["1"], 20);
+    assert.equal(state.teamScores["2"], 0);
+    groupQuizTimedOut = true;
   }
-  assert.equal(quizTimedOut, true, "A quiz timeout should be resolved by a Durable Object Alarm");
+  assert.equal(groupQuizTimedOut, true, "An incomplete simultaneous quiz should be resolved by a Durable Object Alarm");
 
   host.socket.send(JSON.stringify({ type: "END_GAME", actionId: crypto.randomUUID(), expectedVersion: state.version }));
   state = await host.waitFor((next) => next.status === "FINALIZED");
@@ -122,8 +138,12 @@ try {
   }
   assert.ok(resultsPayload, "Final results should be persisted to D1");
   assert.equal(resultsPayload.results.length, 2);
-  assert.equal(resultsPayload.results.some((result) => result.answersCount === 1), true);
-  console.log(`Realtime timeout and results smoke passed for room ${hostSession.room.code} at version ${state.version}.`);
+  assert.equal(resultsPayload.results.every((result) => result.answersCount === 1), true);
+  assert.equal(resultsPayload.results.find((result) => result.teamNumber === 1).teamScore, 20);
+  assert.equal(resultsPayload.responses.length, 2);
+  assert.equal(resultsPayload.responses.filter((response) => response.timedOut).length, 1);
+  assert.equal(resultsPayload.responses.find((response) => response.participantId === hostSession.participant.id).submittedAnswer, "규장각");
+  console.log(`Realtime team, simultaneous timeout, and detailed results smoke passed for room ${hostSession.room.code} at version ${state.version}.`);
 } finally {
   host.socket.close(1000, "Smoke test complete");
   player.socket.close(1000, "Smoke test complete");

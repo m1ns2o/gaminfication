@@ -6,9 +6,12 @@ import {
   createRoomState,
   endGame,
   normalizeRoomState,
+  isCorrectAnswer,
+  resolveAllAnswers,
   rollDice,
   setPlayerConnected,
   startGame,
+  submitAllAnswer,
   timeoutQuestion,
   type AddPlayerInput,
   type ClientRoomMessage,
@@ -27,10 +30,16 @@ type SocketAttachment = {
   participantId: string;
 };
 
+type PendingAnswer = {
+  answer: string;
+  submittedAt: string;
+};
+
 const STATE_KEY = "room-state";
 const SESSION_PREFIX = "session:";
 const ACTIONS_KEY = "recent-actions";
 const CONTENT_KEY = "room-content";
+const PENDING_ANSWERS_KEY = "pending-answers";
 const SESSION_LIFETIME_MS = 6 * 60 * 60 * 1000;
 const MAX_RECENT_ACTIONS = 128;
 
@@ -47,6 +56,7 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
   private state: GameRoomState | null = null;
   private recentActionIds: string[] = [];
   private content: RoomContent = { questions: [], cards: [] };
+  private pendingAnswers: Record<string, PendingAnswer> = {};
   private readonly environment: Cloudflare.Env;
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
@@ -54,11 +64,12 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     this.environment = env;
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.ctx.blockConcurrencyWhile(async () => {
-      const stored = await this.ctx.storage.get([STATE_KEY, ACTIONS_KEY, CONTENT_KEY]);
+      const stored = await this.ctx.storage.get([STATE_KEY, ACTIONS_KEY, CONTENT_KEY, PENDING_ANSWERS_KEY]);
       const storedState = stored.get(STATE_KEY) as GameRoomState | null ?? null;
       this.state = storedState ? normalizeRoomState(storedState) : null;
       this.recentActionIds = stored.get(ACTIONS_KEY) as string[] | undefined ?? [];
       this.content = stored.get(CONTENT_KEY) as RoomContent | undefined ?? { questions: [], cards: [] };
+      this.pendingAnswers = stored.get(PENDING_ANSWERS_KEY) as Record<string, PendingAnswer> | undefined ?? {};
     });
   }
 
@@ -113,16 +124,19 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
 
   private async persistFinalResults(state: GameRoomState) {
     const sortedPlayers = [...state.players].sort((left, right) => (
+      (state.gameMode.playMode === "TEAM" ? (state.teamScores[String(right.teamNumber)] ?? 0) - (state.teamScores[String(left.teamNumber)] ?? 0) : 0)
+      ||
       right.score - left.score
       || right.correctAnswers - left.correctAnswers
       || left.joinedAt.localeCompare(right.joinedAt)
     ));
     let currentRank = 1;
     const ranked = sortedPlayers.map((player, index) => {
-      if (index > 0 && (
-        player.score !== sortedPlayers[index - 1].score
-        || player.correctAnswers !== sortedPlayers[index - 1].correctAnswers
-      )) currentRank = index + 1;
+      const previous = sortedPlayers[index - 1];
+      const rankingChanged = state.gameMode.playMode === "TEAM"
+        ? (state.teamScores[String(player.teamNumber)] ?? 0) !== (state.teamScores[String(previous?.teamNumber)] ?? 0)
+        : player.score !== previous?.score || player.correctAnswers !== previous?.correctAnswers;
+      if (index > 0 && rankingChanged) currentRank = index + 1;
       return { player, rank: currentRank };
     });
     const statements = [
@@ -130,7 +144,7 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
         .bind("FINALIZED", JSON.stringify(state), state.roomId),
       this.environment.DB.prepare("DELETE FROM room_results WHERE room_id = ?").bind(state.roomId),
       ...ranked.map(({ player, rank }) => this.environment.DB.prepare(
-        "INSERT INTO room_results (id, room_id, participant_id, nickname, score, correct_answers, answers_count, rank, is_winner, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO room_results (id, room_id, participant_id, nickname, score, correct_answers, answers_count, rank, is_winner, team_number, team_score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).bind(
         crypto.randomUUID(),
         state.roomId,
@@ -141,10 +155,50 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
         player.answersCount,
         rank,
         state.winnerIds.includes(player.id) ? 1 : 0,
+        player.teamNumber,
+        player.teamNumber ? state.teamScores[String(player.teamNumber)] ?? 0 : null,
         state.finishedAt ?? new Date().toISOString(),
       )),
     ];
     await this.environment.DB.batch(statements);
+  }
+
+  private async persistQuestionResponses(
+    before: GameRoomState,
+    answers: Record<string, PendingAnswer>,
+    resolvedAt: string,
+  ) {
+    const questionId = before.activeQuestion?.id;
+    if (!questionId) return;
+    const definition = this.content.questions.find((question) => question.id === questionId);
+    if (!definition) return;
+    const deadline = before.questionDeadlineAt ? new Date(before.questionDeadlineAt).getTime() : new Date(resolvedAt).getTime();
+    const startedAt = deadline - definition.timeLimitSeconds * 1000;
+    const statements = before.expectedResponderIds.map((participantId) => {
+      const submission = answers[participantId];
+      const correct = submission ? isCorrectAnswer(definition, submission.answer) : false;
+      const submittedAt = submission ? new Date(submission.submittedAt).getTime() : new Date(resolvedAt).getTime();
+      return this.environment.DB.prepare(
+        "INSERT OR REPLACE INTO room_question_responses (id, room_id, question_id, question_sequence, participant_id, question_prompt, question_type, answer_mode, submitted_answer, correct_answer, is_correct, points_awarded, timed_out, response_time_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).bind(
+        `${before.roomId}:${before.questionCursor}:${participantId}`,
+        before.roomId,
+        definition.id,
+        before.questionCursor,
+        participantId,
+        definition.prompt,
+        definition.type,
+        definition.answerMode,
+        submission?.answer ?? "",
+        definition.correctAnswer,
+        correct ? 1 : 0,
+        correct ? definition.points : 0,
+        submission ? 0 : 1,
+        Math.max(0, submittedAt - startedAt),
+        resolvedAt,
+      );
+    });
+    if (statements.length > 0) await this.environment.DB.batch(statements);
   }
 
   private async initialize(request: Request) {
@@ -234,18 +288,50 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
       }
 
       const current = this.requireState();
-      const next = message.type === "START_GAME"
-        ? startGame(current, attachment.participantId, message.expectedVersion)
-        : message.type === "ROLL_DICE"
-          ? rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion, new Date().toISOString(), this.content)
-          : message.type === "ANSWER_QUESTION"
-            ? answerQuestion(current, attachment.participantId, message.answer, this.content, message.expectedVersion)
-            : message.type === "END_GAME"
-              ? endGame(current, attachment.participantId, message.expectedVersion)
-          : null;
+      const now = new Date().toISOString();
+      let responseAnswers: Record<string, PendingAnswer> | null = null;
+      let next: GameRoomState | null = null;
+      if (message.type === "START_GAME") {
+        next = startGame(current, attachment.participantId, message.expectedVersion, now);
+      } else if (message.type === "ROLL_DICE") {
+        next = rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion, now, this.content);
+        if (next.phase === "WAITING_FOR_ANSWER") {
+          this.pendingAnswers = {};
+          await this.ctx.storage.put(PENDING_ANSWERS_KEY, this.pendingAnswers);
+        }
+      } else if (message.type === "ANSWER_QUESTION") {
+        if (message.answer.length > 500) throw new GameRuleError("ANSWER_TOO_LONG", "답안은 500자 이내로 입력하세요.");
+        if (current.activeQuestion?.answerMode === "ALL") {
+          const deadlinePassed = current.questionDeadlineAt && new Date(now).getTime() >= new Date(current.questionDeadlineAt).getTime();
+          if (deadlinePassed) {
+            responseAnswers = this.pendingAnswers;
+            next = resolveAllAnswers(current, this.content, Object.fromEntries(Object.entries(this.pendingAnswers).map(([id, entry]) => [id, entry.answer])), true, now);
+            this.pendingAnswers = {};
+          } else {
+            const submitted = submitAllAnswer(current, attachment.participantId, message.expectedVersion, now);
+            this.pendingAnswers = { ...this.pendingAnswers, [attachment.participantId]: { answer: message.answer, submittedAt: now } };
+            if (submitted.submittedPlayerIds.length === submitted.expectedResponderIds.length) {
+              responseAnswers = this.pendingAnswers;
+              next = resolveAllAnswers(submitted, this.content, Object.fromEntries(Object.entries(this.pendingAnswers).map(([id, entry]) => [id, entry.answer])), false, now);
+              this.pendingAnswers = {};
+            } else {
+              next = submitted;
+            }
+          }
+          await this.ctx.storage.put(PENDING_ANSWERS_KEY, this.pendingAnswers);
+        } else {
+          next = answerQuestion(current, attachment.participantId, message.answer, this.content, message.expectedVersion, now);
+          responseAnswers = next.lastAnswer?.timedOut ? {} : { [attachment.participantId]: { answer: message.answer, submittedAt: now } };
+        }
+      } else if (message.type === "END_GAME") {
+        next = endGame(current, attachment.participantId, message.expectedVersion, now);
+      }
 
       if (!next) throw new GameRuleError("UNKNOWN_MESSAGE", "지원하지 않는 게임 명령입니다.");
       await this.saveState(next, message.actionId);
+      if (responseAnswers && next.lastEvent.type === "QUESTION_ANSWERED") {
+        this.ctx.waitUntil(this.persistQuestionResponses(current, responseAnswers, now).catch((error) => console.error("Failed to persist question responses", error)));
+      }
       await this.reconcileQuestionAlarm(next);
       if (message.type === "START_GAME") {
         this.ctx.waitUntil(
@@ -275,12 +361,20 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
   async alarm() {
     if (!this.state) return;
     try {
-      const next = timeoutQuestion(this.state, this.content);
+      const before = this.state;
+      const now = new Date().toISOString();
+      const responseAnswers = this.pendingAnswers;
+      const next = before.activeQuestion?.answerMode === "ALL"
+        ? resolveAllAnswers(before, this.content, Object.fromEntries(Object.entries(responseAnswers).map(([id, entry]) => [id, entry.answer])), true, now)
+        : timeoutQuestion(before, this.content, now);
       if (next === this.state) {
         await this.reconcileQuestionAlarm(this.state);
         return;
       }
       await this.saveState(next);
+      this.pendingAnswers = {};
+      await this.ctx.storage.put(PENDING_ANSWERS_KEY, this.pendingAnswers);
+      await this.persistQuestionResponses(before, responseAnswers, now);
       await this.reconcileQuestionAlarm(next);
       if (next.status === "FINALIZED") await this.persistFinalResults(next);
       this.broadcastState();

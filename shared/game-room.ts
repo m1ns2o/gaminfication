@@ -10,6 +10,8 @@ export type VictoryMode = "SCORE" | "ROUNDS" | "FINISH";
 export type RoomQuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER" | "OX";
 export type RoomCardEffect = "MOVE_FORWARD" | "MOVE_BACK" | "SCORE_BONUS" | "EXTRA_TURN" | "SKIP_TURN";
 export type RoomTileType = "START" | "QUIZ" | "BONUS" | "EVENT" | "REST";
+export type AnswerMode = "TURN" | "ALL";
+export type PlayMode = "INDIVIDUAL" | "TEAM";
 
 export type RoomQuestion = {
   id: string;
@@ -18,6 +20,7 @@ export type RoomQuestion = {
   options: string[];
   points: number;
   timeLimitSeconds: number;
+  answerMode: AnswerMode;
 };
 
 export type RoomQuestionDefinition = RoomQuestion & {
@@ -49,11 +52,12 @@ export type RoomPlayer = {
   skipTurns: number;
   answersCount: number;
   correctAnswers: number;
+  teamNumber: number | null;
   joinedAt: string;
 };
 
 export type RoomEvent = {
-  type: "ROOM_CREATED" | "PLAYER_JOINED" | "PLAYER_CONNECTION_CHANGED" | "GAME_STARTED" | "DICE_ROLLED" | "QUESTION_PRESENTED" | "QUESTION_ANSWERED" | "CARD_DRAWN" | "GAME_FINISHED";
+  type: "ROOM_CREATED" | "PLAYER_JOINED" | "PLAYER_CONNECTION_CHANGED" | "GAME_STARTED" | "DICE_ROLLED" | "QUESTION_PRESENTED" | "ANSWER_SUBMITTED" | "QUESTION_ANSWERED" | "CARD_DRAWN" | "GAME_FINISHED";
   at: string;
   actorId?: string;
   dice?: number;
@@ -82,6 +86,11 @@ export type GameRoomState = {
     maxRounds: number;
   };
   tileTypes: RoomTileType[];
+  gameMode: {
+    playMode: PlayMode;
+    teamCount: number;
+  };
+  teamScores: Record<string, number>;
   version: number;
   round: number;
   turnIndex: number;
@@ -91,6 +100,8 @@ export type GameRoomState = {
   cardCursor: number;
   activeQuestion: RoomQuestion | null;
   questionDeadlineAt: string | null;
+  expectedResponderIds: string[];
+  submittedPlayerIds: string[];
   activeCard: RoomCard | null;
   lastAnswer: {
     playerId: string;
@@ -100,7 +111,15 @@ export type GameRoomState = {
     pointsAwarded: number;
     timedOut: boolean;
   } | null;
+  lastGroupResult: {
+    correctCount: number;
+    totalCount: number;
+    correctAnswer: string;
+    explanation: string;
+    timedOut: boolean;
+  } | null;
   winnerIds: string[];
+  winnerTeamNumbers: number[];
   finishedAt: string | null;
   players: RoomPlayer[];
   lastEvent: RoomEvent;
@@ -111,16 +130,18 @@ export type CreateRoomInput = Pick<
   GameRoomState,
   "roomId" | "code" | "gameId" | "gameTitle" | "template" | "skin"
 > & {
-  host: Pick<RoomPlayer, "id" | "nickname">;
+  host: Pick<RoomPlayer, "id" | "nickname"> & { teamNumber?: number | null };
   questions?: RoomQuestionDefinition[];
   cards?: RoomCard[];
   gameRules?: GameRoomState["gameRules"];
   tileTypes?: RoomTileType[];
+  gameMode?: GameRoomState["gameMode"];
   now?: string;
 };
 
 export type AddPlayerInput = Pick<RoomPlayer, "id" | "nickname"> & {
   role?: PlayerRole;
+  teamNumber?: number | null;
   now?: string;
 };
 
@@ -141,6 +162,10 @@ const defaultRoomTileTypes: RoomTileType[] = [
   "BONUS", "QUIZ", "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ",
   "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ", "EVENT", "QUIZ",
 ] as const;
+
+function initialTeamScores(teamCount: number) {
+  return Object.fromEntries(Array.from({ length: teamCount }, (_, index) => [String(index + 1), 0]));
+}
 
 export class GameRuleError extends Error {
   readonly code: string;
@@ -180,15 +205,23 @@ export function normalizeRoomState(state: GameRoomState): GameRoomState {
       maxRounds: 10,
     },
     tileTypes: state.tileTypes?.length === 24 ? state.tileTypes : [...defaultRoomTileTypes],
+    gameMode: state.gameMode ?? { playMode: "INDIVIDUAL", teamCount: 2 },
+    teamScores: state.teamScores ?? initialTeamScores(state.gameMode?.teamCount ?? 2),
     questionDeadlineAt: state.questionDeadlineAt ?? null,
+    activeQuestion: state.activeQuestion ? { ...state.activeQuestion, answerMode: state.activeQuestion.answerMode ?? "TURN" } : null,
+    expectedResponderIds: state.expectedResponderIds ?? [],
+    submittedPlayerIds: state.submittedPlayerIds ?? [],
     winnerIds: state.winnerIds ?? [],
+    winnerTeamNumbers: state.winnerTeamNumbers ?? [],
     finishedAt: state.finishedAt ?? null,
     lastAnswer: state.lastAnswer ? { ...state.lastAnswer, timedOut: state.lastAnswer.timedOut ?? false } : null,
+    lastGroupResult: state.lastGroupResult ?? null,
     players: state.players.map((player) => ({
       ...player,
       skipTurns: player.skipTurns ?? 0,
       answersCount: player.answersCount ?? 0,
       correctAnswers: player.correctAnswers ?? 0,
+      teamNumber: player.teamNumber ?? null,
     })),
   };
 }
@@ -206,6 +239,7 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     skipTurns: 0,
     answersCount: 0,
     correctAnswers: 0,
+    teamNumber: input.gameMode?.playMode === "TEAM" ? input.host.teamNumber ?? 1 : null,
     joinedAt: now,
   };
 
@@ -224,6 +258,8 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
       maxRounds: 10,
     },
     tileTypes: input.tileTypes?.length === 24 ? input.tileTypes : [...defaultRoomTileTypes],
+    gameMode: input.gameMode ?? { playMode: "INDIVIDUAL", teamCount: 2 },
+    teamScores: initialTeamScores(input.gameMode?.teamCount ?? 2),
     version: 1,
     round: 1,
     turnIndex: 0,
@@ -233,9 +269,13 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     cardCursor: 0,
     activeQuestion: null,
     questionDeadlineAt: null,
+    expectedResponderIds: [],
+    submittedPlayerIds: [],
     activeCard: null,
     lastAnswer: null,
+    lastGroupResult: null,
     winnerIds: [],
+    winnerTeamNumbers: [],
     finishedAt: null,
     players: [host],
     lastEvent: { type: "ROOM_CREATED", at: now, actorId: host.id },
@@ -254,6 +294,10 @@ export function addPlayer(state: GameRoomState, input: AddPlayerInput): GameRoom
   }
 
   const now = input.now ?? new Date().toISOString();
+  const teamNumber = state.gameMode.playMode === "TEAM" ? input.teamNumber : null;
+  if (state.gameMode.playMode === "TEAM" && (!teamNumber || teamNumber < 1 || teamNumber > state.gameMode.teamCount)) {
+    throw new GameRuleError("TEAM_INVALID", `1–${state.gameMode.teamCount}팀 중 하나를 선택하세요.`);
+  }
   const player: RoomPlayer = {
     id: input.id,
     nickname: input.nickname,
@@ -265,6 +309,7 @@ export function addPlayer(state: GameRoomState, input: AddPlayerInput): GameRoom
     skipTurns: 0,
     answersCount: 0,
     correctAnswers: 0,
+    teamNumber: teamNumber ?? null,
     joinedAt: now,
   };
 
@@ -312,14 +357,27 @@ export function startGame(
   );
 }
 
-function rankedWinnerIds(players: RoomPlayer[]) {
-  const highestScore = Math.max(...players.map((player) => player.score));
-  return players.filter((player) => player.score === highestScore).map((player) => player.id);
+function leadingTeams(state: GameRoomState) {
+  const highestScore = Math.max(...Object.values(state.teamScores));
+  return Object.entries(state.teamScores).filter(([, score]) => score === highestScore).map(([team]) => Number(team));
+}
+
+function rankedWinnerIds(state: GameRoomState) {
+  if (state.gameMode.playMode === "TEAM") {
+    const teams = leadingTeams(state);
+    return state.players.filter((player) => player.teamNumber && teams.includes(player.teamNumber)).map((player) => player.id);
+  }
+  const highestScore = Math.max(...state.players.map((player) => player.score));
+  return state.players.filter((player) => player.score === highestScore).map((player) => player.id);
 }
 
 function finishReason(state: GameRoomState) {
   if (state.gameRules.victoryMode === "FINISH" && state.players.some((player) => player.position >= 23)) return "FINISH_TILE" as const;
-  if (state.gameRules.victoryMode === "SCORE" && state.players.some((player) => player.score >= state.gameRules.targetScore)) return "SCORE_TARGET" as const;
+  if (state.gameRules.victoryMode === "SCORE" && (
+    state.gameMode.playMode === "TEAM"
+      ? Object.values(state.teamScores).some((score) => score >= state.gameRules.targetScore)
+      : state.players.some((player) => player.score >= state.gameRules.targetScore)
+  )) return "SCORE_TARGET" as const;
   if (state.gameRules.victoryMode === "ROUNDS" && state.round > state.gameRules.maxRounds) return "ROUND_LIMIT" as const;
   return null;
 }
@@ -330,9 +388,15 @@ function finishGameState(
   now: string,
   event: Omit<RoomEvent, "type" | "at" | "finishReason"> = {},
 ) {
-  const winnerIds = reason === "FINISH_TILE"
+  const initialWinnerIds = reason === "FINISH_TILE"
     ? state.players.filter((player) => player.position >= 23).map((player) => player.id)
-    : rankedWinnerIds(state.players);
+    : rankedWinnerIds(state);
+  const winnerTeamNumbers = state.gameMode.playMode === "TEAM"
+    ? [...new Set(initialWinnerIds.map((id) => state.players.find((player) => player.id === id)?.teamNumber).filter((team): team is number => team !== null && team !== undefined))]
+    : [];
+  const winnerIds = state.gameMode.playMode === "TEAM"
+    ? state.players.filter((player) => player.teamNumber && winnerTeamNumbers.includes(player.teamNumber)).map((player) => player.id)
+    : initialWinnerIds;
   return nextVersion(
     {
       ...state,
@@ -341,8 +405,11 @@ function finishGameState(
       currentPlayerId: null,
       activeQuestion: null,
       questionDeadlineAt: null,
+      expectedResponderIds: [],
+      submittedPlayerIds: [],
       activeCard: null,
       winnerIds,
+      winnerTeamNumbers,
       finishedAt: now,
       round: Math.min(state.round, state.gameRules.maxRounds),
     },
@@ -390,7 +457,7 @@ export function rollDice(
   const movedPlayers = state.players.map((player) => player.id === actorId ? { ...player, position: to } : player);
   const tileType = state.tileTypes[to];
 
-  const movedState = { ...state, lastRoll: dice, players: movedPlayers, activeQuestion: null, questionDeadlineAt: null, activeCard: null, lastAnswer: null };
+  const movedState = { ...state, lastRoll: dice, players: movedPlayers, activeQuestion: null, questionDeadlineAt: null, expectedResponderIds: [], submittedPlayerIds: [], activeCard: null, lastAnswer: null, lastGroupResult: null };
   const movementFinishReason = finishReason(movedState);
   if (movementFinishReason) {
     return finishGameState(movedState, movementFinishReason, now, { actorId, dice, from, to });
@@ -405,7 +472,12 @@ export function rollDice(
       options: definition.options,
       points: definition.points,
       timeLimitSeconds: definition.timeLimitSeconds,
+      answerMode: definition.answerMode,
     };
+    const connectedPlayerIds = state.players.filter((player) => player.connected).map((player) => player.id);
+    const expectedResponderIds = definition.answerMode === "ALL"
+      ? connectedPlayerIds.length > 0 ? connectedPlayerIds : state.players.map((player) => player.id)
+      : [actorId];
     return nextVersion(
       {
         ...state,
@@ -414,8 +486,11 @@ export function rollDice(
         questionCursor: state.questionCursor + 1,
         activeQuestion,
         questionDeadlineAt: new Date(new Date(now).getTime() + definition.timeLimitSeconds * 1000).toISOString(),
+        expectedResponderIds,
+        submittedPlayerIds: [],
         activeCard: null,
         lastAnswer: null,
+        lastGroupResult: null,
         players: movedPlayers,
       },
       { type: "QUESTION_PRESENTED", at: now, actorId, dice, from, to, questionId: definition.id },
@@ -425,6 +500,7 @@ export function rollDice(
   if ((tileType === "BONUS" || tileType === "EVENT") && content.cards.length > 0) {
     const card = content.cards[state.cardCursor % content.cards.length];
     let players = movedPlayers;
+    let teamScores = state.teamScores;
     const keepTurn = card.effectType === "EXTRA_TURN";
     players = players.map((player) => {
       if (player.id !== actorId) return player;
@@ -434,9 +510,12 @@ export function rollDice(
       if (card.effectType === "SKIP_TURN") return { ...player, skipTurns: player.skipTurns + 1 };
       return player;
     });
+    if (card.effectType === "SCORE_BONUS" && state.gameMode.playMode === "TEAM" && actor.teamNumber) {
+      teamScores = { ...teamScores, [String(actor.teamNumber)]: (teamScores[String(actor.teamNumber)] ?? 0) + card.effectValue };
+    }
     const turn = keepTurn ? { turnIndex: state.turnIndex, currentPlayerId: actorId, round: state.round, players } : advanceTurn(state, players);
     return completeTransition(
-      { ...state, ...turn, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: state.cardCursor + 1, activeQuestion: null, questionDeadlineAt: null, activeCard: card, lastAnswer: null },
+      { ...state, ...turn, teamScores, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: state.cardCursor + 1, activeQuestion: null, questionDeadlineAt: null, expectedResponderIds: [], submittedPlayerIds: [], activeCard: card, lastAnswer: null, lastGroupResult: null },
       { type: "CARD_DRAWN", at: now, actorId, dice, from, to, cardId: card.id },
     );
   }
@@ -451,8 +530,11 @@ export function rollDice(
       lastRoll: dice,
       activeQuestion: null,
       questionDeadlineAt: null,
+      expectedResponderIds: [],
+      submittedPlayerIds: [],
       activeCard: null,
       lastAnswer: null,
+      lastGroupResult: null,
     },
     { type: "DICE_ROLLED", at: now, actorId, dice, from, to },
   );
@@ -476,6 +558,14 @@ function normalizeAnswer(answer: string) {
   return answer.normalize("NFKC").trim().toLocaleLowerCase("ko-KR").replace(/\s+/g, " ");
 }
 
+export function isCorrectAnswer(definition: RoomQuestionDefinition, answer: string) {
+  const submitted = normalizeAnswer(answer);
+  const acceptedAnswers = definition.type === "SHORT_ANSWER"
+    ? definition.correctAnswer.split(",").map(normalizeAnswer)
+    : [normalizeAnswer(definition.correctAnswer)];
+  return submitted.length > 0 && acceptedAnswers.includes(submitted);
+}
+
 export function answerQuestion(
   state: GameRoomState,
   actorId: string,
@@ -492,14 +582,11 @@ export function answerQuestion(
   if (answer.length > 500) throw new GameRuleError("ANSWER_TOO_LONG", "답안은 500자 이내로 입력하세요.");
   const definition = content.questions.find((question) => question.id === state.activeQuestion?.id);
   if (!definition) throw new GameRuleError("QUESTION_NOT_FOUND", "문제 정답 정보를 찾을 수 없습니다.");
+  if (definition.answerMode === "ALL") throw new GameRuleError("ALL_ANSWER_REQUIRED", "전원 동시 문제는 모든 참가자의 답을 수집합니다.");
   if (state.questionDeadlineAt && new Date(now).getTime() >= new Date(state.questionDeadlineAt).getTime()) {
     return resolveQuestion(state, definition, actorId, false, true, now);
   }
-  const submitted = normalizeAnswer(answer);
-  const acceptedAnswers = definition.type === "SHORT_ANSWER"
-    ? definition.correctAnswer.split(",").map(normalizeAnswer)
-    : [normalizeAnswer(definition.correctAnswer)];
-  const correct = submitted.length > 0 && acceptedAnswers.includes(submitted);
+  const correct = isCorrectAnswer(definition, answer);
   return resolveQuestion(state, definition, actorId, correct, false, now);
 }
 
@@ -518,15 +605,22 @@ function resolveQuestion(
     answersCount: player.answersCount + 1,
     correctAnswers: player.correctAnswers + (correct ? 1 : 0),
   } : player);
+  const actor = state.players.find((player) => player.id === actorId);
+  const teamScores = correct && state.gameMode.playMode === "TEAM" && actor?.teamNumber
+    ? { ...state.teamScores, [String(actor.teamNumber)]: (state.teamScores[String(actor.teamNumber)] ?? 0) + pointsAwarded }
+    : state.teamScores;
   const turn = advanceTurn(state, scoredPlayers);
 
   return completeTransition(
     {
       ...state,
       ...turn,
+      teamScores,
       phase: "WAITING_FOR_ROLL",
       activeQuestion: null,
       questionDeadlineAt: null,
+      expectedResponderIds: [],
+      submittedPlayerIds: [],
       activeCard: null,
       lastAnswer: {
         playerId: actorId,
@@ -536,8 +630,82 @@ function resolveQuestion(
         pointsAwarded,
         timedOut,
       },
+      lastGroupResult: null,
     },
     { type: "QUESTION_ANSWERED", at: now, actorId, questionId: definition.id, correct, pointsAwarded, timedOut },
+  );
+}
+
+export function submitAllAnswer(
+  state: GameRoomState,
+  actorId: string,
+  expectedVersion?: number,
+  now = new Date().toISOString(),
+) {
+  assertVersion(state, expectedVersion);
+  if (state.status !== "PLAYING" || state.phase !== "WAITING_FOR_ANSWER" || state.activeQuestion?.answerMode !== "ALL") {
+    throw new GameRuleError("NO_ACTIVE_ALL_QUESTION", "현재 전원 동시 문제가 없습니다.");
+  }
+  if (!state.expectedResponderIds.includes(actorId)) throw new GameRuleError("NOT_A_RESPONDER", "이 문제의 응답 대상이 아닙니다.");
+  if (state.submittedPlayerIds.includes(actorId)) throw new GameRuleError("ANSWER_ALREADY_SUBMITTED", "이미 답안을 제출했습니다.");
+  return nextVersion(
+    { ...state, submittedPlayerIds: [...state.submittedPlayerIds, actorId] },
+    { type: "ANSWER_SUBMITTED", at: now, actorId, questionId: state.activeQuestion.id },
+  );
+}
+
+export function resolveAllAnswers(
+  state: GameRoomState,
+  content: RoomContent,
+  answers: Record<string, string>,
+  timedOut: boolean,
+  now = new Date().toISOString(),
+) {
+  if (state.status !== "PLAYING" || state.phase !== "WAITING_FOR_ANSWER" || state.activeQuestion?.answerMode !== "ALL" || !state.currentPlayerId) {
+    throw new GameRuleError("NO_ACTIVE_ALL_QUESTION", "현재 전원 동시 문제가 없습니다.");
+  }
+  const definition = content.questions.find((question) => question.id === state.activeQuestion?.id);
+  if (!definition) throw new GameRuleError("QUESTION_NOT_FOUND", "문제 정답 정보를 찾을 수 없습니다.");
+  const expected = new Set(state.expectedResponderIds);
+  let correctCount = 0;
+  let teamScores = state.teamScores;
+  const scoredPlayers = state.players.map((player) => {
+    if (!expected.has(player.id)) return player;
+    const correct = isCorrectAnswer(definition, answers[player.id] ?? "");
+    if (correct) correctCount += 1;
+    const pointsAwarded = correct ? definition.points : 0;
+    if (correct && state.gameMode.playMode === "TEAM" && player.teamNumber) {
+      teamScores = { ...teamScores, [String(player.teamNumber)]: (teamScores[String(player.teamNumber)] ?? 0) + pointsAwarded };
+    }
+    return {
+      ...player,
+      score: player.score + pointsAwarded,
+      answersCount: player.answersCount + 1,
+      correctAnswers: player.correctAnswers + (correct ? 1 : 0),
+    };
+  });
+  const turn = advanceTurn(state, scoredPlayers);
+  return completeTransition(
+    {
+      ...state,
+      ...turn,
+      teamScores,
+      phase: "WAITING_FOR_ROLL",
+      activeQuestion: null,
+      questionDeadlineAt: null,
+      expectedResponderIds: [],
+      submittedPlayerIds: [],
+      activeCard: null,
+      lastAnswer: null,
+      lastGroupResult: {
+        correctCount,
+        totalCount: state.expectedResponderIds.length,
+        correctAnswer: definition.correctAnswer,
+        explanation: definition.explanation,
+        timedOut,
+      },
+    },
+    { type: "QUESTION_ANSWERED", at: now, actorId: state.currentPlayerId, questionId: definition.id, correct: correctCount === state.expectedResponderIds.length, pointsAwarded: correctCount * definition.points, timedOut },
   );
 }
 
@@ -550,6 +718,7 @@ export function timeoutQuestion(
   const definition = content.questions.find((question) => question.id === state.activeQuestion?.id);
   if (!definition) throw new GameRuleError("QUESTION_NOT_FOUND", "문제 정답 정보를 찾을 수 없습니다.");
   if (state.questionDeadlineAt && new Date(now).getTime() < new Date(state.questionDeadlineAt).getTime()) return state;
+  if (definition.answerMode === "ALL") return resolveAllAnswers(state, content, {}, true, now);
   return resolveQuestion(state, definition, state.currentPlayerId, false, true, now);
 }
 

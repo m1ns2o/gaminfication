@@ -7,6 +7,7 @@ const templates = ["LOOP_24", "RACE_24"] as const;
 const skins = ["CAMPUS", "SPACE_LAB", "ECO_EXPEDITION"] as const;
 const victoryModes = ["AUTO", "SCORE", "ROUNDS", "FINISH"] as const;
 const tileTypes = ["START", "QUIZ", "BONUS", "EVENT", "REST"] as const;
+const playModes = ["INDIVIDUAL", "TEAM"] as const;
 
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number) {
   const parsed = Number(value);
@@ -42,6 +43,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const template = templates.includes(payload.template as typeof templates[number]) ? payload.template as typeof templates[number] : existing.template;
     const skin = skins.includes(payload.skin as typeof skins[number]) ? payload.skin as typeof skins[number] : existing.skin;
     const victoryMode = victoryModes.includes(payload.victoryMode as typeof victoryModes[number]) ? payload.victoryMode as typeof victoryModes[number] : existing.victoryMode;
+    const playMode = playModes.includes(payload.playMode as typeof playModes[number]) ? payload.playMode as typeof playModes[number] : existing.playMode;
     const now = new Date().toISOString();
     let tileConfigJson = existing.tileConfigJson;
     if (payload.tileTypes !== undefined) {
@@ -63,6 +65,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       targetScore: boundedInteger(payload.targetScore, existing.targetScore, 10, 1000),
       maxRounds: boundedInteger(payload.maxRounds, existing.maxRounds, 1, 50),
       tileConfigJson,
+      playMode,
+      teamCount: boundedInteger(payload.teamCount, existing.teamCount, 2, 8),
       updatedAt: now,
     }).where(eq(games.id, id)).returning();
     return Response.json({ game });

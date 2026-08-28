@@ -43,6 +43,8 @@ export async function POST(request: Request) {
       targetScore: games.targetScore,
       maxRounds: games.maxRounds,
       tileConfigJson: games.tileConfigJson,
+      playMode: games.playMode,
+      teamCount: games.teamCount,
     }).from(games).where(and(eq(games.id, payload.gameId), eq(games.ownerId, hostId))).limit(1);
     if (!ownedGame) return badRequest("GAME_NOT_FOUND", "게임을 찾을 수 없습니다.");
     const [gameQuestions, gameCards] = await Promise.all([
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
       roomId: room.id,
       authUserId: `host:${hostId}`,
       nickname: "진행자",
+      teamNumber: ownedGame.playMode === "TEAM" ? 1 : null,
       isTeamLeader: true,
       joinedAt: now.toISOString(),
       lastSeenAt: now.toISOString(),
@@ -82,6 +85,7 @@ export async function POST(request: Request) {
           targetScore: ownedGame.targetScore,
           maxRounds: ownedGame.maxRounds,
         },
+        gameMode: { playMode: ownedGame.playMode, teamCount: ownedGame.teamCount },
         tileTypes: roomTileTypes(ownedGame.tileConfigJson),
         questions: gameQuestions.map((question) => ({
           id: question.id,
@@ -92,6 +96,7 @@ export async function POST(request: Request) {
           explanation: question.explanation,
           points: question.points,
           timeLimitSeconds: question.timeLimitSeconds,
+          answerMode: question.answerMode,
         })),
         cards: gameCards.map((card) => ({
           id: card.id,
@@ -100,7 +105,7 @@ export async function POST(request: Request) {
           effectType: card.effectType,
           effectValue: card.effectValue,
         })),
-        host: { id: participantId, nickname: "진행자" },
+        host: { id: participantId, nickname: "진행자", teamNumber: ownedGame.playMode === "TEAM" ? 1 : null },
         now: now.toISOString(),
       });
     } catch (error) {

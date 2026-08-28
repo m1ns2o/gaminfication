@@ -7,8 +7,10 @@ import {
   createRoomState,
   endGame,
   rollDice,
+  resolveAllAnswers,
   setPlayerConnected,
   startGame,
+  submitAllAnswer,
   timeoutQuestion,
 } from "../shared/game-room.ts";
 
@@ -68,7 +70,7 @@ test("presents a safe quiz, validates the answer, and awards points", () => {
   let state = addPlayer(createFixture(), { id: "player-1", nickname: "별빛나침반", now: firstTime });
   state = startGame(state, "host-1", state.version, firstTime);
   const content = {
-    questions: [{ id: "q1", type: "SHORT_ANSWER", prompt: "왕실 도서관은?", options: [], correctAnswer: "규장각, 奎章閣", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 30 }],
+    questions: [{ id: "q1", type: "SHORT_ANSWER", prompt: "왕실 도서관은?", options: [], correctAnswer: "규장각, 奎章閣", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 30, answerMode: "TURN" }],
     cards: [],
   };
 
@@ -112,7 +114,7 @@ test("finishes a race at tile 24 without wrapping to the start", () => {
 
 test("supports score, round, timeout, and host-ended completion", () => {
   const content = {
-    questions: [{ id: "q1", type: "OX", prompt: "정답은 O", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 20, timeLimitSeconds: 10 }],
+    questions: [{ id: "q1", type: "OX", prompt: "정답은 O", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 20, timeLimitSeconds: 10, answerMode: "TURN" }],
     cards: [],
   };
   let scoreState = createFixture();
@@ -147,9 +149,38 @@ test("uses the teacher-authored tile layout in the authoritative engine", () => 
   state = addPlayer(state, { id: "player-1", nickname: "참가자", now: firstTime });
   state = startGame(state, "host-1", state.version, firstTime);
   state = rollDice(state, "host-1", 1, state.version, firstTime, {
-    questions: [{ id: "q1", type: "OX", prompt: "출제되지 않아야 함", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 10, timeLimitSeconds: 10 }],
+    questions: [{ id: "q1", type: "OX", prompt: "출제되지 않아야 함", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 10, timeLimitSeconds: 10, answerMode: "TURN" }],
     cards: [],
   });
   assert.equal(state.activeQuestion, null);
+  assert.equal(state.currentPlayerId, "player-1");
+});
+
+test("collects simultaneous answers privately and awards team scores", () => {
+  let state = createRoomState({
+    roomId: "team-room", code: "444444", gameId: "g", gameTitle: "팀 퀴즈",
+    template: "LOOP_24", skin: "CAMPUS", host: { id: "host-1", nickname: "진행자", teamNumber: 1 },
+    gameMode: { playMode: "TEAM", teamCount: 2 }, now: firstTime,
+  });
+  state = addPlayer(state, { id: "player-1", nickname: "참가자", teamNumber: 2, now: firstTime });
+  state = setPlayerConnected(state, "host-1", true, firstTime);
+  state = setPlayerConnected(state, "player-1", true, firstTime);
+  state = startGame(state, "host-1", state.version, firstTime);
+  const content = {
+    questions: [{ id: "q-all", type: "OX", prompt: "정답은 O", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 15, timeLimitSeconds: 10, answerMode: "ALL" }],
+    cards: [],
+  };
+
+  state = rollDice(state, "host-1", 1, state.version, firstTime, content);
+  assert.deepEqual(state.expectedResponderIds, ["host-1", "player-1"]);
+  state = submitAllAnswer(state, "host-1", state.version, "2026-08-29T00:00:02.000Z");
+  assert.deepEqual(state.submittedPlayerIds, ["host-1"]);
+  assert.equal("pendingAnswers" in state, false, "Public state must never contain the private answer buffer");
+  state = submitAllAnswer(state, "player-1", state.version, "2026-08-29T00:00:03.000Z");
+  state = resolveAllAnswers(state, content, { "host-1": "O", "player-1": "X" }, false, "2026-08-29T00:00:03.000Z");
+  assert.equal(state.lastGroupResult.correctCount, 1);
+  assert.equal(state.teamScores["1"], 15);
+  assert.equal(state.teamScores["2"], 0);
+  assert.equal(state.players[0].answersCount, 1);
   assert.equal(state.currentPlayerId, "player-1");
 });

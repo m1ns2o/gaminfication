@@ -10,12 +10,15 @@ test("validates multiple choice, short answer, and O/X question formats", () => 
     correctAnswer: "규장각",
     points: 20,
     timeLimitSeconds: 45,
+    answerMode: "ALL",
   });
   assert.equal(multiple.type, "MULTIPLE_CHOICE");
   assert.equal(multiple.options.length, 4);
+  assert.equal(multiple.answerMode, "ALL");
 
   const short = parseQuestionInput({ type: "SHORT_ANSWER", prompt: "정답을 쓰세요.", correctAnswer: "규장각" });
   assert.deepEqual(short.options, []);
+  assert.equal(short.answerMode, "TURN");
 
   const ox = parseQuestionInput({ type: "OX", prompt: "정조는 규장각을 설치했다.", correctAnswer: "o" });
   assert.equal(ox.correctAnswer, "O");

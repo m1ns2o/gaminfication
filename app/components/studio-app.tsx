@@ -42,6 +42,7 @@ import { useGameRoom } from "../lib/use-game-room";
 type View = "dashboard" | "library" | "editor";
 type EditorSection = "settings" | "tiles" | "questions" | "cards";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
+type JoinRoomInfo = { gameTitle: string; playMode: "INDIVIDUAL" | "TEAM"; teamCount: number };
 
 type Game = {
   id: string;
@@ -60,6 +61,8 @@ type Game = {
   targetScore?: number;
   maxRounds?: number;
   tileTypes?: TileType[];
+  playMode?: "INDIVIDUAL" | "TEAM";
+  teamCount?: number;
 };
 
 type ApiGame = {
@@ -79,6 +82,8 @@ type ApiGame = {
   targetScore: number;
   maxRounds: number;
   tileConfigJson: string;
+  playMode: "INDIVIDUAL" | "TEAM";
+  teamCount: number;
 };
 
 function fromApiGame(game: ApiGame): Game {
@@ -106,6 +111,8 @@ function fromApiGame(game: ApiGame): Game {
     targetScore: game.targetScore,
     maxRounds: game.maxRounds,
     tileTypes,
+    playMode: game.playMode,
+    teamCount: game.teamCount,
   };
 }
 
@@ -350,6 +357,9 @@ export function StudioApp() {
   const [createOpen, setCreateOpen] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinRoomInfo, setJoinRoomInfo] = useState<JoinRoomInfo | null>(null);
+  const [joinLookupStatus, setJoinLookupStatus] = useState<"idle" | "loading" | "found" | "missing">("idle");
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState("");
   const [libraryFilter, setLibraryFilter] = useState("전체");
@@ -393,6 +403,8 @@ export function StudioApp() {
       ? `카드 · ${realtime.roomState.activeCard.title}`
       : realtime.roomState?.lastAnswer
         ? realtime.roomState.lastAnswer.correct ? `정답 · +${realtime.roomState.lastAnswer.pointsAwarded}점` : "정답을 확인해 보세요"
+        : realtime.roomState?.lastGroupResult
+          ? `전원 결과 · ${realtime.roomState.lastGroupResult.correctCount}/${realtime.roomState.lastGroupResult.totalCount}명 정답`
         : "퀴즈와 카드로 학습하기";
   const formattedRoomCode = realtime.roomCode
     ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}`
@@ -414,6 +426,30 @@ export function StudioApp() {
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const normalizedCode = joinCode.replace(/\D/g, "");
+    if (!joinOpen || normalizedCode.length !== 6) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/v1/rooms/join?code=${normalizedCode}`, { signal: controller.signal })
+        .then(async (response) => {
+          const payload = await response.json() as { room?: JoinRoomInfo };
+          if (!response.ok || !payload.room) throw new Error("ROOM_NOT_FOUND");
+          setJoinRoomInfo(payload.room);
+          setJoinLookupStatus("found");
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setJoinRoomInfo(null);
+          setJoinLookupStatus("missing");
+        });
+    }, 200);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [joinCode, joinOpen]);
 
   const lastRoomEvent = realtime.roomState?.lastEvent;
   const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
@@ -565,7 +601,7 @@ export function StudioApp() {
     const form = new FormData(event.currentTarget);
     setRealtimeBusy(true);
     try {
-      const session = await realtime.joinRoom(String(form.get("code") ?? ""), String(form.get("nickname") ?? ""));
+      const session = await realtime.joinRoom(String(form.get("code") ?? ""), String(form.get("nickname") ?? ""), joinRoomInfo?.playMode === "TEAM" ? Number(form.get("teamNumber")) : undefined);
       setJoinOpen(false);
       setView("dashboard");
       setLiveMessage(`${session.participant.nickname} 닉네임으로 방에 참가했습니다.`);
@@ -582,7 +618,7 @@ export function StudioApp() {
         view={view}
         onView={setView}
         onCreate={() => setCreateOpen(true)}
-        onJoin={() => setJoinOpen(true)}
+        onJoin={() => { setJoinCode(""); setJoinRoomInfo(null); setJoinLookupStatus("idle"); setJoinOpen(true); }}
       />
 
       <div className="live-region sr-only" aria-live="polite">{announcedMessage}</div>
@@ -668,6 +704,7 @@ export function StudioApp() {
                 state={realtime.roomState}
                 canAnswer={realtime.canAnswer}
                 onAnswer={realtime.answer}
+                viewerId={realtime.participantId}
               />
             )}
 
@@ -694,17 +731,17 @@ export function StudioApp() {
               <span>실시간</span>
             </div>
             <div className="session-summary">
-              <span className="session-summary__time">14:00</span>
-              <strong>6학년 2반 사회</strong>
-              <span>32명 · 8개 팀</span>
+              <span className="session-summary__time">{realtime.roomCode ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}` : "수업 전"}</span>
+              <strong>{realtime.roomState?.gameTitle ?? selectedGame.title}</strong>
+              <span>{realtime.roomState ? `${realtime.roomState.players.length}명 · ${realtime.roomState.gameMode.playMode === "TEAM" ? `${realtime.roomState.gameMode.teamCount}개 팀` : "개인전"}` : "방을 만들면 참가 현황이 표시됩니다."}</span>
             </div>
             <ol className="session-timeline">
-              <li className="is-complete"><Check aria-hidden="true" /><span><strong>참가 확인</strong><small>32명 입장</small></span></li>
-              <li className="is-current"><Play aria-hidden="true" /><span><strong>게임 진행</strong><small>3라운드 · 18분</small></span></li>
-              <li><BarChart3 aria-hidden="true" /><span><strong>결과 정리</strong><small>종료 후 자동 요약</small></span></li>
+              <li className={realtime.roomState ? realtime.roomState.status === "LOBBY" ? "is-current" : "is-complete" : ""}><Check aria-hidden="true" /><span><strong>참가 확인</strong><small>{realtime.roomState ? `${realtime.roomState.players.length}명 입장` : "방 생성 대기"}</small></span></li>
+              <li className={realtime.roomState?.status === "PLAYING" ? "is-current" : realtime.roomState?.status === "FINALIZED" ? "is-complete" : ""}><Play aria-hidden="true" /><span><strong>게임 진행</strong><small>{realtime.roomState?.status === "PLAYING" ? `${realtime.roomState.round}라운드 · ${realtime.roomState.phase === "WAITING_FOR_ANSWER" ? "응답 중" : "주사위 대기"}` : "시작 전"}</small></span></li>
+              <li className={realtime.roomState?.status === "FINALIZED" ? "is-current" : ""}><BarChart3 aria-hidden="true" /><span><strong>결과 정리</strong><small>{realtime.roomState?.status === "FINALIZED" ? "문항별 결과 저장 완료" : "종료 후 자동 요약"}</small></span></li>
             </ol>
             <button className="button button--ink" type="button" onClick={() => realtime.roomCode ? setRoomOpen(true) : void prepareRoom()}>{realtime.roomCode ? "진행 화면 열기" : "수업 방 만들기"}</button>
-            <p className="panel-note">서술형 채점 대기 2건 · 재접속 0명</p>
+            <p className="panel-note">{realtime.roomState ? `접속 ${realtime.roomState.players.filter((player) => player.connected).length}명 · 연결 끊김 ${realtime.roomState.players.filter((player) => !player.connected).length}명` : "실시간 접속 상태는 방 안에서 자동 갱신됩니다."}</p>
           </aside>
         </main>
       )}
@@ -795,6 +832,8 @@ export function StudioApp() {
                   victoryMode: selectedGame.victoryMode ?? "AUTO",
                   targetScore: selectedGame.targetScore ?? 100,
                   maxRounds: selectedGame.maxRounds ?? 10,
+                  playMode: selectedGame.playMode ?? "INDIVIDUAL",
+                  teamCount: selectedGame.teamCount ?? 2,
                 }}
                 onSaved={updateGameSettings}
                 onMessage={setLiveMessage}
@@ -856,9 +895,10 @@ export function StudioApp() {
       <DialogShell open={joinOpen} onClose={() => setJoinOpen(false)} labelledBy="join-dialog-title" className="join-dialog">
         <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--amber"><Users /></span><h2 id="join-dialog-title">수업 게임 참가</h2><p>선생님 화면에 나온 코드와 사용할 닉네임을 입력하세요.</p></div><button className="icon-button" type="button" onClick={() => setJoinOpen(false)} aria-label="닫기"><X /></button></div>
         <form className="join-form" onSubmit={joinRoom}>
-          <label><span>6자리 참가 코드</span><input className="code-input" inputMode="numeric" name="code" pattern="[0-9]{6}" maxLength={6} placeholder="482731" required aria-describedby="code-help" /><small id="code-help">숫자만 6자리 입력하세요.</small></label>
+          <label><span>6자리 참가 코드</span><input className="code-input" inputMode="numeric" name="code" pattern="[0-9]{6}" maxLength={6} placeholder="482731" required aria-describedby="code-help" value={joinCode} onChange={(event) => { const nextCode = event.target.value.replace(/\D/g, ""); setJoinCode(nextCode); setJoinRoomInfo(null); setJoinLookupStatus(nextCode.length === 6 ? "loading" : "idle"); }} /><small id="code-help">{joinLookupStatus === "loading" ? "방 정보를 확인하고 있습니다." : joinLookupStatus === "found" && joinRoomInfo ? `${joinRoomInfo.gameTitle} · ${joinRoomInfo.playMode === "TEAM" ? `${joinRoomInfo.teamCount}팀 팀전` : "개인전"}` : joinLookupStatus === "missing" ? "열려 있는 방을 찾지 못했습니다." : "숫자만 6자리 입력하세요."}</small></label>
           <label><span>닉네임</span><input name="nickname" minLength={2} maxLength={12} placeholder="별빛나침반" required /></label>
-          <button className="button button--primary button--full" type="submit" disabled={realtimeBusy}>{realtimeBusy ? "연결 중" : "게임에 참가하기"}</button>
+          {joinRoomInfo?.playMode === "TEAM" && <label><span>팀 선택</span><select name="teamNumber" defaultValue="1">{Array.from({ length: joinRoomInfo.teamCount }, (_, index) => index + 1).map((team) => <option key={team} value={team}>{team}팀</option>)}</select></label>}
+          <button className="button button--primary button--full" type="submit" disabled={realtimeBusy || joinLookupStatus !== "found"}>{realtimeBusy ? "연결 중" : "게임에 참가하기"}</button>
         </form>
         <p className="privacy-note"><LockKeyhole /> 계정 없이 참가하며, 닉네임은 이 수업이 끝나면 삭제됩니다.</p>
       </DialogShell>

@@ -26,6 +26,8 @@ export const games = sqliteTable("games", {
   targetScore: integer("target_score").notNull().default(100),
   maxRounds: integer("max_rounds").notNull().default(10),
   tileConfigJson: text("tile_config_json").notNull().default("[]"),
+  playMode: text("play_mode", { enum: ["INDIVIDUAL", "TEAM"] }).notNull().default("INDIVIDUAL"),
+  teamCount: integer("team_count").notNull().default(2),
   sourceVersionId: text("source_version_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -44,6 +46,7 @@ export const questions = sqliteTable("questions", {
   explanation: text("explanation").notNull().default(""),
   points: integer("points").notNull().default(10),
   timeLimitSeconds: integer("time_limit_seconds").notNull().default(30),
+  answerMode: text("answer_mode", { enum: ["TURN", "ALL"] }).notNull().default("TURN"),
   orderIndex: integer("order_index").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -115,8 +118,38 @@ export const roomResults = sqliteTable("room_results", {
   answersCount: integer("answers_count").notNull().default(0),
   rank: integer("rank").notNull(),
   isWinner: integer("is_winner", { mode: "boolean" }).notNull().default(false),
+  teamNumber: integer("team_number"),
+  teamScore: integer("team_score"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("idx_room_results_participant").on(table.roomId, table.participantId),
   index("idx_room_results_rank").on(table.roomId, table.rank),
 ]);
+
+export const roomQuestionResponses = sqliteTable("room_question_responses", {
+  id: text("id").primaryKey(),
+  roomId: text("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+  questionId: text("question_id").notNull(),
+  questionSequence: integer("question_sequence").notNull(),
+  participantId: text("participant_id").notNull().references(() => roomParticipants.id, { onDelete: "cascade" }),
+  questionPrompt: text("question_prompt").notNull(),
+  questionType: text("question_type").notNull(),
+  answerMode: text("answer_mode").notNull(),
+  submittedAnswer: text("submitted_answer").notNull().default(""),
+  correctAnswer: text("correct_answer").notNull(),
+  isCorrect: integer("is_correct", { mode: "boolean" }).notNull().default(false),
+  pointsAwarded: integer("points_awarded").notNull().default(0),
+  timedOut: integer("timed_out", { mode: "boolean" }).notNull().default(false),
+  responseTimeMs: integer("response_time_ms").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_room_responses_attempt_participant").on(table.roomId, table.questionSequence, table.participantId),
+  index("idx_room_responses_room_question").on(table.roomId, table.questionId),
+  index("idx_room_responses_participant").on(table.roomId, table.participantId),
+]);
+
+export const requestRateLimits = sqliteTable("request_rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(1),
+  expiresAt: text("expires_at").notNull(),
+});

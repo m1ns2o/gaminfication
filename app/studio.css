@@ -1837,6 +1837,29 @@
   font-weight: 850;
 }
 
+.room-results .room-results__details {
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed var(--color-rule-strong);
+}
+
+.room-results__details h4 {
+  margin: 0;
+  font-family: var(--font-label);
+}
+
+.room-results__details ul {
+  display: grid;
+  gap: var(--space-xs);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.room-results__details li {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .content-empty__hint {
   padding: var(--space-md);
   border: 1px dashed var(--color-rule-strong);

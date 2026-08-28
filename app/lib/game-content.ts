@@ -1,4 +1,5 @@
 export type QuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER" | "OX";
+export type AnswerMode = "TURN" | "ALL";
 export type CardEffectType = "MOVE_FORWARD" | "MOVE_BACK" | "SCORE_BONUS" | "EXTRA_TURN" | "SKIP_TURN";
 
 export type GameQuestion = {
@@ -11,6 +12,7 @@ export type GameQuestion = {
   explanation: string;
   points: number;
   timeLimitSeconds: number;
+  answerMode: AnswerMode;
   orderIndex: number;
   createdAt: string;
   updatedAt: string;
@@ -28,7 +30,7 @@ export type GameCard = {
   updatedAt: string;
 };
 
-export type QuestionInput = Pick<GameQuestion, "type" | "prompt" | "options" | "correctAnswer" | "explanation" | "points" | "timeLimitSeconds">;
+export type QuestionInput = Pick<GameQuestion, "type" | "prompt" | "options" | "correctAnswer" | "explanation" | "points" | "timeLimitSeconds" | "answerMode">;
 export type CardInput = Pick<GameCard, "title" | "description" | "effectType" | "effectValue">;
 
 const questionTypes: QuestionType[] = ["MULTIPLE_CHOICE", "SHORT_ANSWER", "OX"];
@@ -85,6 +87,7 @@ export function parseQuestionInput(value: unknown): QuestionInput {
     explanation: typeof payload.explanation === "string" ? payload.explanation.trim() : "",
     points: boundedInteger(payload.points, 10, 1, 100),
     timeLimitSeconds: boundedInteger(payload.timeLimitSeconds, 30, 5, 300),
+    answerMode: payload.answerMode === "ALL" ? "ALL" : "TURN",
   };
 }
 

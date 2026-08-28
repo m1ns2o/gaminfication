@@ -7,7 +7,7 @@ type ConnectionStatus = "idle" | "connecting" | "open" | "reconnecting" | "error
 
 type RoomSessionResponse = {
   room: { id: string; code: string; status: string };
-  participant: { id: string; nickname: string; role: "HOST" | "PLAYER" };
+  participant: { id: string; nickname: string; role: "HOST" | "PLAYER"; teamNumber?: number | null };
   realtime: { ticket: string; websocketPath: string };
 };
 
@@ -153,12 +153,12 @@ export function useGameRoom() {
     return session;
   }, [connect]);
 
-  const joinRoom = useCallback(async (code: string, nickname: string) => {
+  const joinRoom = useCallback(async (code: string, nickname: string, teamNumber?: number) => {
     setError(null);
     const response = await fetch("/api/v1/rooms/join", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, nickname }),
+      body: JSON.stringify({ code, nickname, teamNumber }),
     });
     const session = await readRoomResponse(response);
     connect(session);
@@ -211,7 +211,9 @@ export function useGameRoom() {
     status === "open"
     && roomState?.status === "PLAYING"
     && roomState.phase === "WAITING_FOR_ANSWER"
-    && roomState.currentPlayerId === participantId
+    && (roomState.activeQuestion?.answerMode === "ALL"
+      ? Boolean(participantId && roomState.expectedResponderIds.includes(participantId) && !roomState.submittedPlayerIds.includes(participantId))
+      : roomState.currentPlayerId === participantId)
   ), [participantId, roomState, status]);
 
   const canEnd = useMemo(() => (
