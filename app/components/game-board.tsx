@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Coffee, Flag, Gift, Sparkles, Zap } from "lucide-react";
+import { BookOpen, Coffee, Dices, Flag, Gift, Sparkles, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   boardGeometries,
@@ -12,6 +12,7 @@ import {
   type SkinId,
   type TileType,
 } from "../lib/board";
+import { PhysicsDie } from "./physics-die";
 
 type Token = {
   id: string;
@@ -46,14 +47,6 @@ type GameBoardProps = {
 };
 
 const tileIcons = { START: Flag, QUIZ: BookOpen, BONUS: Gift, EVENT: Zap, REST: Coffee };
-const dicePips: Record<number, number[]> = {
-  1: [5],
-  2: [1, 9],
-  3: [1, 5, 9],
-  4: [1, 3, 7, 9],
-  5: [1, 3, 5, 7, 9],
-  6: [1, 3, 4, 6, 7, 9],
-};
 const tileArrivalCopy: Record<TileType, string> = {
   START: "출발점에 도착했습니다",
   QUIZ: "퀴즈가 열립니다",
@@ -73,31 +66,7 @@ function followLineTile(scrollRegion: HTMLDivElement | null, tileIndex: number, 
   scrollRegion.scrollTo({ left: Math.max(0, left), behavior });
 }
 
-function DiceFace({ value, side }: { value: number; side: string }) {
-  const pips = new Set(dicePips[value]);
-  return (
-    <span className={`dice-cube__side dice-cube__side--${side}`} aria-hidden="true">
-      {Array.from({ length: 9 }, (_, index) => <i key={index} className={pips.has(index + 1) ? "is-visible" : ""} />)}
-    </span>
-  );
-}
-
-function Dice({ value, rolling }: { value: number; rolling: boolean }) {
-  return (
-    <span className="dice-scene" aria-hidden="true">
-      <span className={`dice-cube${rolling ? " is-rolling" : ""}`} data-face={value}>
-        <DiceFace value={1} side="front" />
-        <DiceFace value={2} side="right" />
-        <DiceFace value={3} side="top" />
-        <DiceFace value={4} side="bottom" />
-        <DiceFace value={5} side="left" />
-        <DiceFace value={6} side="back" />
-      </span>
-    </span>
-  );
-}
-
-function TokenMark({ token, moving }: { token: Token; moving: boolean }) {
+function TokenMark({ token, moving = false }: { token: Token; moving?: boolean }) {
   const glyph = { book: "B", bulb: "L", compass: "C", leaf: "E", rocket: "R" }[token.symbol];
   return (
     <span
@@ -110,10 +79,9 @@ function TokenMark({ token, moving }: { token: Token; moving: boolean }) {
   );
 }
 
-function BoardTileView({ tile, tokens, movingTokenId, currentStep, landed }: {
+function BoardTileView({ tile, tokens, currentStep, landed }: {
   tile: BoardTile;
   tokens: Token[];
-  movingTokenId: string | null;
   currentStep: boolean;
   landed: boolean;
 }) {
@@ -132,7 +100,7 @@ function BoardTileView({ tile, tokens, movingTokenId, currentStep, landed }: {
       <span className="board-tile__label">{tile.label}</span>
       {tokens.length > 0 ? (
         <span className="token-stack">
-          {visible.map((token) => <TokenMark key={token.id} token={token} moving={token.id === movingTokenId} />)}
+          {visible.map((token) => <TokenMark key={token.id} token={token} />)}
           {overflow > 0 ? <span className="token-overflow">+{overflow}</span> : null}
         </span>
       ) : null}
@@ -158,6 +126,7 @@ export function GameBoard({
   const geometry = boardGeometries[geometryId];
   const [displayedPositions, setDisplayedPositions] = useState<Record<string, number>>(() => Object.fromEntries(tokens.map((token) => [token.id, token.position])));
   const [rolling, setRolling] = useState(false);
+  const [rollCycle, setRollCycle] = useState(0);
   const [movingTokenId, setMovingTokenId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [landedIndex, setLandedIndex] = useState<number | null>(null);
@@ -168,6 +137,8 @@ export function GameBoard({
   const motionGenerationRef = useRef(0);
   const motionInFlightRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const movingTokenRef = useRef<HTMLSpanElement | null>(null);
   const tokensRef = useRef(tokens);
   const tileTypesRef = useRef(tileTypes);
   const completionRef = useRef(onMovementComplete);
@@ -181,9 +152,10 @@ export function GameBoard({
     animationStateRef.current = onAnimationStateChange;
   }, [onAnimationStateChange, onMovementComplete, tileTypes, tokens]);
 
-  function beginDiceRoll(duration = 720) {
+  function beginDiceRoll(duration = 1900) {
     if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current);
     rollEndAtRef.current = Date.now() + duration;
+    setRollCycle((current) => current + 1);
     setRolling(true);
     setLandedIndex(null);
     setAnnouncement("주사위를 굴리고 있습니다.");
@@ -198,7 +170,7 @@ export function GameBoard({
     if (!onRoll || rolling || movingTokenId) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     animationStateRef.current?.(true);
-    beginDiceRoll(reducedMotion ? 120 : 720);
+    beginDiceRoll(reducedMotion ? 120 : 1900);
     navigator.vibrate?.(18);
     onRoll();
   }
@@ -249,19 +221,51 @@ export function GameBoard({
         setDisplayedPositions(next);
         if (geometryId === "LINE_24") followLineTile(scrollRef.current, changedToken.position, "auto");
       } else {
-        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(720);
+        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(1900);
         await wait(Math.max(0, rollEndAtRef.current - Date.now()));
         if (generation !== motionGenerationRef.current) return;
         setRolling(false);
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        const movingElement = movingTokenRef.current;
+        const boardElement = boardRef.current;
+        const tilePoint = (position: number) => {
+          const tile = boardElement?.querySelector<HTMLElement>(`[data-tile-index="${position}"]`);
+          if (!tile) return null;
+          return { x: tile.offsetLeft + tile.offsetWidth / 2, y: tile.offsetTop + tile.offsetHeight / 2 };
+        };
+        let visualPosition = from;
+        const initialPoint = tilePoint(visualPosition);
+        if (movingElement && initialPoint) {
+          movingElement.style.left = `${initialPoint.x}px`;
+          movingElement.style.top = `${initialPoint.y}px`;
+          movingElement.classList.add("is-ready");
+        }
         for (const position of path) {
           if (generation !== motionGenerationRef.current) return;
-          const next = { ...positionsRef.current, [changedToken.id]: position };
-          positionsRef.current = next;
-          setDisplayedPositions(next);
+          const startPoint = tilePoint(visualPosition);
+          const endPoint = tilePoint(position);
           setCurrentStep(position);
           if (geometryId === "LINE_24") followLineTile(scrollRef.current, position, "smooth");
-          await wait(180);
+          if (movingElement && startPoint && endPoint) {
+            movingElement.style.left = `${endPoint.x}px`;
+            movingElement.style.top = `${endPoint.y}px`;
+            const deltaX = startPoint.x - endPoint.x;
+            const deltaY = startPoint.y - endPoint.y;
+            const hopHeight = Math.max(18, Math.min(34, Math.hypot(deltaX, deltaY) * 0.28));
+            const animation = movingElement.animate([
+              { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) translate(-50%, -68%) scale(1)` },
+              { transform: `translate3d(${deltaX * 0.5}px, ${deltaY * 0.5 - hopHeight}px, 0) translate(-50%, -68%) scale(1.12)`, offset: 0.52 },
+              { transform: "translate3d(0, 0, 0) translate(-50%, -68%) scale(1)" },
+            ], { duration: 360, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" });
+            await animation.finished.catch(() => undefined);
+          } else {
+            await wait(360);
+          }
+          visualPosition = position;
         }
+        const next = { ...positionsRef.current, [changedToken.id]: changedToken.position };
+        positionsRef.current = next;
+        setDisplayedPositions(next);
       }
       if (generation !== motionGenerationRef.current) return;
       setCurrentStep(null);
@@ -286,13 +290,14 @@ export function GameBoard({
   }, [compact, geometry, geometryId, movement?.actorId, movement?.cardDirection, movement?.from, movement?.key, movement?.rollTo, targetSignature]);
 
   const displayedTokens = compact ? tokens : tokens.map((token) => ({ ...token, position: displayedPositions[token.id] ?? token.position }));
+  const movingToken = movingTokenId ? displayedTokens.find((token) => token.id === movingTokenId) ?? null : null;
   const landedType = landedIndex === null ? null : tileTypes?.[landedIndex] ?? geometry.tiles[landedIndex].type;
   const board = (
-    <div className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()}${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
+    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()}${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
       {geometry.tiles.map((baseTile) => {
         const type = tileTypes?.[baseTile.index] ?? baseTile.type;
         const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
-        return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.position === tile.index)} movingTokenId={movingTokenId} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} />;
+        return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.id !== movingTokenId && token.position === tile.index)} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} />;
       })}
       {geometryId === "LOOP_24" ? (
         <div className="board-stage">
@@ -300,6 +305,13 @@ export function GameBoard({
           <div className="landmark landmark--right" aria-hidden="true" />
           <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
           <Sparkles className="stage-spark" aria-hidden="true" />
+        </div>
+      ) : null}
+      {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
+      {rolling && !compact ? (
+        <div className="dice-roll-overlay" role="status" aria-label="주사위를 굴리는 중">
+          <PhysicsDie value={lastRoll} rollKey={rollCycle} />
+          <strong>주사위가 굴러갑니다</strong>
         </div>
       ) : null}
     </div>
@@ -315,7 +327,7 @@ export function GameBoard({
         <div className="board-console" data-state={rolling ? "rolling" : movingTokenId ? "moving" : landedType ? "arrived" : "idle"}>
           <div className="board-console__status"><span className="mono-label">ROUND {round}</span><strong>{rolling ? "주사위를 굴리는 중" : movingTokenId ? `${currentStep !== null ? currentStep + 1 : ""}번 칸으로 이동 중` : `${currentTurnLabel} 차례`}</strong><span>{landedType ? `${tileTypeLabels[landedType]} 칸 도착 · ${tileArrivalCopy[landedType]}` : eventLabel}</span></div>
           <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
-            <Dice value={lastRoll} rolling={rolling} />
+            <Dices aria-hidden="true" />
             <span>{rolling ? "굴리는 중" : movingTokenId ? "이동 중" : "주사위 굴리기"}</span>
           </button>
         </div>

@@ -62,10 +62,10 @@
   --dur-micro: 120ms;
   --dur-short: 220ms;
   --dur-long: 420ms;
-  --dur-step: 180ms;
-  --dur-dice: 720ms;
+  --dur-step: 360ms;
+  --dur-dice: 1900ms;
 
-  --size-dice: 2.5rem;
+  --size-dice: clamp(5.5rem, 14vw, 8.5rem);
 
   --rule-hairline: 1px solid var(--color-rule);
   --rule-strong: 2px solid var(--color-ink);

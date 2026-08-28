@@ -5,7 +5,6 @@ import {
   BarChart3,
   BookOpen,
   Check,
-  ChevronDown,
   CircleHelp,
   Clock3,
   Copy,
@@ -16,6 +15,8 @@ import {
   Grid2X2,
   Library,
   Link2,
+  LogIn,
+  LogOut,
   LockKeyhole,
   Menu,
   MoreHorizontal,
@@ -44,6 +45,11 @@ type View = "dashboard" | "library" | "editor";
 type EditorSection = "settings" | "tiles" | "questions" | "cards";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 type JoinRoomInfo = { gameTitle: string; playMode: "INDIVIDUAL" | "TEAM"; teamCount: number };
+type StudioAuth = {
+  user: { displayName: string; email: string } | null;
+  signInPath: string;
+  signOutPath: string;
+};
 
 type Game = {
   id: string;
@@ -294,11 +300,13 @@ function HeaderNav({
   onView,
   onCreate,
   onJoin,
+  auth,
 }: {
   view: View;
   onView: (view: View) => void;
   onCreate: () => void;
   onJoin: () => void;
+  auth: StudioAuth;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
@@ -317,10 +325,15 @@ function HeaderNav({
           <Plus aria-hidden="true" />
           새 게임
         </button>
-        <button className="profile-button" type="button" aria-label="프로필 메뉴 열기">
-          <span aria-hidden="true">민</span>
-          <ChevronDown aria-hidden="true" />
-        </button>
+        {auth.user ? (
+          <a className="profile-button" href={auth.signOutPath} title={`${auth.user.displayName} · 로그아웃`}>
+            <span className="profile-button__avatar" aria-hidden="true">{auth.user.displayName.trim().charAt(0) || "교"}</span>
+            <span className="profile-button__name">{auth.user.displayName}</span>
+            <LogOut aria-hidden="true" />
+          </a>
+        ) : (
+          <a className="auth-button" href={auth.signInPath}><LogIn aria-hidden="true" /> 교사용 로그인</a>
+        )}
         <button
           className="mobile-menu-button"
           type="button"
@@ -338,13 +351,14 @@ function HeaderNav({
           <button type="button" onClick={() => { onView("library"); setMobileOpen(false); }}>공유마당</button>
           <button type="button" onClick={() => { onJoin(); setMobileOpen(false); }}>코드로 참가</button>
           <button type="button" onClick={() => { onCreate(); setMobileOpen(false); }}>새 게임</button>
+          <a href={auth.user ? auth.signOutPath : auth.signInPath}>{auth.user ? "로그아웃" : "교사용 로그인"}</a>
         </nav>
       )}
     </header>
   );
 }
 
-export function StudioApp() {
+export function StudioApp({ auth }: { auth: StudioAuth }) {
   const realtime = useGameRoom();
   const [view, setView] = useState<View>("dashboard");
   const [games, setGames] = useState(initialGames);
@@ -642,6 +656,7 @@ export function StudioApp() {
         onView={setView}
         onCreate={() => setCreateOpen(true)}
         onJoin={() => { setJoinCode(""); setJoinRoomInfo(null); setJoinLookupStatus("idle"); setJoinOpen(true); }}
+        auth={auth}
       />
 
       <div className="live-region sr-only" aria-live="polite">{announcedMessage}</div>
@@ -650,7 +665,7 @@ export function StudioApp() {
         <main className="dashboard-shell">
           <section className="workspace-intro reveal" style={{ "--i": 0 } as React.CSSProperties}>
             <div>
-              <p className="workspace-date">2026년 8월 28일 · 금요일 수업</p>
+              <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 수업` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
               <h1>수업 게임 작업대</h1>
               <p>초안을 이어서 만들거나, 준비된 게임으로 바로 방을 여세요.</p>
             </div>
@@ -708,47 +723,53 @@ export function StudioApp() {
               </label>
             </div>
 
-            <GameBoard
-              geometryId={liveGeometry}
-              skinId={liveSkin}
-              tokens={liveTokens}
-              round={liveRound}
-              lastRoll={liveLastRoll}
-              onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
-              currentTurnLabel={currentTurnLabel}
-              eventLabel={boardEventLabel}
-              tileTypes={liveTileTypes}
-              movement={boardMovement}
-              onAnimationStateChange={setBoardAnimating}
-              onMovementComplete={({ position, tileType }) => {
-                if (realtime.roomState) return;
-                const type: PreviewArrivalType = !boardGeometries[liveGeometry].wraps && position === 23 ? "FINISH" : tileType;
-                setPreviewArrival({ id: localMovementSequence.current, type });
-              }}
-            />
-
-            {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
-              <RoomPrompt
-                key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
-                state={realtime.roomState}
-                canAnswer={realtime.canAnswer}
-                onAnswer={realtime.answer}
-                viewerId={realtime.participantId}
+            <div className="play-stage">
+              <GameBoard
+                geometryId={liveGeometry}
+                skinId={liveSkin}
+                tokens={liveTokens}
+                round={liveRound}
+                lastRoll={liveLastRoll}
+                onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
+                currentTurnLabel={currentTurnLabel}
+                eventLabel={boardEventLabel}
+                tileTypes={liveTileTypes}
+                movement={boardMovement}
+                onAnimationStateChange={setBoardAnimating}
+                onMovementComplete={({ position, tileType }) => {
+                  if (realtime.roomState) return;
+                  const type: PreviewArrivalType = !boardGeometries[liveGeometry].wraps && position === 23 ? "FINISH" : tileType;
+                  setPreviewArrival({ id: localMovementSequence.current, type });
+                }}
               />
-            )}
 
-            {!realtime.roomState && previewArrival && !boardAnimating ? (
-              <PreviewTileAction
-                key={previewArrival.id}
-                gameId={selectedGame.id}
-                type={previewArrival.type}
-                canLoadContent={persistedGameIds.has(selectedGame.id)}
-                questionCount={selectedGame.questions}
-                cardCount={selectedGame.cards}
-                onEdit={(section) => { setEditorSection(section); setView("editor"); setPreviewArrival(null); }}
-                onDismiss={() => setPreviewArrival(null)}
-              />
-            ) : null}
+              {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
+                <div className="play-stage__overlay">
+                  <RoomPrompt
+                    key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
+                    state={realtime.roomState}
+                    canAnswer={realtime.canAnswer}
+                    onAnswer={realtime.answer}
+                    viewerId={realtime.participantId}
+                  />
+                </div>
+              )}
+
+              {!realtime.roomState && previewArrival && !boardAnimating ? (
+                <div className="play-stage__overlay">
+                  <PreviewTileAction
+                    key={previewArrival.id}
+                    gameId={selectedGame.id}
+                    type={previewArrival.type}
+                    canLoadContent={persistedGameIds.has(selectedGame.id)}
+                    questionCount={selectedGame.questions}
+                    cardCount={selectedGame.cards}
+                    onEdit={(section) => { setEditorSection(section); setView("editor"); setPreviewArrival(null); }}
+                    onDismiss={() => setPreviewArrival(null)}
+                  />
+                </div>
+              ) : null}
+            </div>
 
             <div className="workbench-actions">
               <div className="content-counts">

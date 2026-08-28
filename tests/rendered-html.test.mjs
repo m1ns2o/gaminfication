@@ -22,7 +22,8 @@ test("Classloop page and worker expose the realtime room surface", async () => {
     readFile(new URL("wrangler.jsonc", root), "utf8"),
   ]);
 
-  assert.match(page, /<StudioApp\s*\/>/);
+  assert.match(page, /getChatGPTUser\(\)/);
+  assert.match(page, /<StudioApp\s+auth=/);
   assert.match(layout, /Classloop/);
   assert.match(studio, /useGameRoom\(\)/);
   assert.match(studio, /prepareRoom/);

@@ -106,7 +106,7 @@ export function PreviewTileAction({
   if (type === "FINISH") {
     return (
       <section className="preview-action preview-action--finish" aria-live="polite">
-        <Flag aria-hidden="true" /><div><span className="mono-label">TEST PLAY · FINISH</span><h3>결승점에 도착했습니다</h3><p>실제 게임에서는 이 순간 승자를 확정하고 결과를 저장합니다.</p></div><button className="button button--ink" type="button" onClick={onDismiss}>결과 확인</button>
+        <Flag aria-hidden="true" /><div><span className="mono-label">플레이 미리보기 · 결승점</span><h3>결승점에 도착했습니다</h3><p>수업을 시작하면 이 순간 승자를 확정하고 결과를 저장합니다.</p></div><button className="button button--ink" type="button" onClick={onDismiss}>결과 확인</button>
       </section>
     );
   }
@@ -115,7 +115,7 @@ export function PreviewTileAction({
     const Icon = type === "REST" ? Coffee : Flag;
     return (
       <section className="preview-action preview-action--rest" aria-live="polite">
-        <Icon aria-hidden="true" /><div><span className="mono-label">TEST PLAY · {type}</span><h3>{type === "REST" ? "휴식 칸에 도착했습니다" : "출발점으로 돌아왔습니다"}</h3><p>{type === "REST" ? "추가 행동 없이 다음 참가자에게 차례를 넘깁니다." : "순환형 보드의 한 바퀴를 마쳤습니다."}</p></div><button className="button button--quiet" type="button" onClick={onDismiss}>확인</button>
+        <Icon aria-hidden="true" /><div><span className="mono-label">플레이 미리보기 · {type === "REST" ? "휴식" : "출발"}</span><h3>{type === "REST" ? "휴식 칸에 도착했습니다" : "출발점으로 돌아왔습니다"}</h3><p>{type === "REST" ? "추가 행동 없이 다음 참가자에게 차례를 넘깁니다." : "순환형 보드의 한 바퀴를 마쳤습니다."}</p></div><button className="button button--quiet" type="button" onClick={onDismiss}>확인</button>
       </section>
     );
   }
@@ -125,7 +125,7 @@ export function PreviewTileAction({
       <section className={`preview-action preview-action--quiz${result ? ` is-${result}` : ""}`} aria-live="polite">
         <BookOpen aria-hidden="true" />
         <div className="preview-action__body">
-          <span className="mono-label">TEST PLAY · QUIZ</span>
+          <span className="mono-label">플레이 미리보기 · 퀴즈</span>
           {loading ? <><h3>문제를 불러오는 중</h3><p>문제은행에서 첫 문제를 확인하고 있습니다.</p></> : question ? <><h3>{question.prompt}</h3>{result ? <div className="preview-answer-result">{result === "correct" ? <CheckCircle2 aria-hidden="true" /> : <Zap aria-hidden="true" />}<p><strong>{result === "correct" ? `정답 · +${question.points}점` : "다시 확인해 보세요"}</strong><span>정답: {question.correctAnswer}{question.explanation ? ` · ${question.explanation}` : ""}</span></p></div> : question.type === "SHORT_ANSWER" ? <form className="preview-short-answer" onSubmit={submitShortAnswer}><label><span className="sr-only">테스트 답안</span><input value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="답안을 입력하세요" autoComplete="off" /></label><button className="button button--ink" type="submit" disabled={!answer.trim()}>정답 확인</button></form> : <div className={`preview-answer-options${question.type === "OX" ? " preview-answer-options--ox" : ""}`}>{question.options.map((option, index) => <button key={`${index}-${option}`} type="button" onClick={() => submit(option)}><span>{question.type === "OX" ? option : index + 1}</span>{question.type === "OX" ? null : option}</button>)}</div>}</> : <><h3>출제할 문제가 없습니다</h3><p>표시된 문제 수는 {questionCount}개지만 저장된 문제 데이터가 없습니다. 문제은행에서 첫 문제를 만들어 주세요.</p><button className="text-button" type="button" onClick={() => onEdit("questions")}>문제은행 열기 <ArrowRight aria-hidden="true" /></button></>}
         </div>
         {result ? <button className="button button--quiet" type="button" onClick={onDismiss}>계속하기</button> : null}
@@ -136,7 +136,7 @@ export function PreviewTileAction({
   const Icon = type === "BONUS" ? Gift : Zap;
   return (
     <section className={`preview-action preview-action--${type.toLowerCase()}`} aria-live="polite">
-      <Icon aria-hidden="true" /><div className="preview-action__body"><span className="mono-label">TEST PLAY · {type}</span>{loading ? <><h3>카드를 뽑는 중</h3><p>카드 덱을 섞고 있습니다.</p></> : card ? <><h3>{card.title}</h3><p>{card.description || "카드 효과가 즉시 적용됩니다."}</p><strong className="preview-card-effect">{cardEffectLabels[card.effectType]}{card.effectValue ? ` · ${card.effectValue}` : ""}</strong></> : <><h3>사용할 카드가 없습니다</h3><p>현재 카드 수는 {cardCount}개입니다. 카드 덱을 채우면 도착 즉시 효과가 발동합니다.</p><button className="text-button" type="button" onClick={() => onEdit("cards")}>카드 덱 열기 <ArrowRight aria-hidden="true" /></button></>}</div><button className="button button--quiet" type="button" onClick={onDismiss}>확인</button>
+      <Icon aria-hidden="true" /><div className="preview-action__body"><span className="mono-label">플레이 미리보기 · {type === "BONUS" ? "보너스" : "이벤트"}</span>{loading ? <><h3>카드를 뽑는 중</h3><p>카드 덱을 섞고 있습니다.</p></> : card ? <><h3>{card.title}</h3><p>{card.description || "카드 효과가 즉시 적용됩니다."}</p><strong className="preview-card-effect">{cardEffectLabels[card.effectType]}{card.effectValue ? ` · ${card.effectValue}` : ""}</strong></> : <><h3>사용할 카드가 없습니다</h3><p>현재 카드 수는 {cardCount}개입니다. 카드 덱을 채우면 도착 즉시 효과가 발동합니다.</p><button className="text-button" type="button" onClick={() => onEdit("cards")}>카드 덱 열기 <ArrowRight aria-hidden="true" /></button></>}</div><button className="button button--quiet" type="button" onClick={onDismiss}>확인</button>
     </section>
   );
 }

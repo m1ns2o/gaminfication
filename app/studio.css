@@ -82,32 +82,64 @@
 }
 
 .nav-create,
-.profile-button {
+.profile-button,
+.auth-button {
   display: none;
 }
 
 .profile-button {
-  min-width: 3.5rem;
+  max-width: 14rem;
   min-height: 2.75rem;
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-2xs) var(--space-xs);
   border: 0;
   background: transparent;
+  color: var(--color-ink);
+  text-decoration: none;
   cursor: pointer;
 }
 
-.profile-button span {
+.profile-button__avatar {
   display: grid;
   width: 2rem;
   height: 2rem;
+  flex: 0 0 2rem;
   place-items: center;
   border-radius: var(--radius-pill);
   background: var(--color-coral-soft);
   font-weight: 800;
 }
 
+.profile-button__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
 .profile-button svg {
+  width: 1rem;
+  flex: 0 0 1rem;
+}
+
+.auth-button {
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-inline: var(--space-sm);
+  border: var(--rule-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.auth-button svg {
   width: 1rem;
 }
 
@@ -142,14 +174,19 @@
   box-shadow: var(--shadow-raised);
 }
 
-.mobile-navigation button {
+.mobile-navigation button,
+.mobile-navigation a {
+  display: flex;
   min-height: 3rem;
+  align-items: center;
   padding-inline: var(--space-md);
   border: 0;
   border-block-end: var(--rule-hairline);
   background: transparent;
+  color: var(--color-ink);
   text-align: start;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .button {
@@ -438,6 +475,38 @@
   border: var(--rule-hairline);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.play-stage {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+
+.play-stage__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: clamp(var(--space-sm), 3vw, var(--space-xl));
+  overflow-y: auto;
+  border-radius: var(--radius-card);
+  background: var(--color-overlay);
+  animation: dice-overlay-in var(--dur-short) var(--ease-out) both;
+}
+
+.play-stage__overlay:empty {
+  display: none;
+}
+
+.play-stage__overlay > .room-prompt,
+.play-stage__overlay > .preview-action {
+  width: min(100%, 44rem);
+  max-height: calc(100% - var(--space-md));
+  margin: 0;
+  overflow-y: auto;
   box-shadow: var(--shadow-raised);
 }
 
@@ -780,7 +849,24 @@
 }
 
 .token.is-moving {
-  animation: token-hop var(--dur-step) var(--ease-out) both;
+  width: clamp(1.4rem, 3.4vw, 2rem);
+  height: clamp(1.4rem, 3.4vw, 2rem);
+  margin: 0;
+  box-shadow: 0 0 0 0.25rem var(--color-surface), var(--shadow-raised);
+}
+
+.moving-token {
+  position: absolute;
+  z-index: var(--z-sticky);
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -68%);
+  will-change: left, top, transform;
+}
+
+.moving-token.is-ready {
+  opacity: 1;
 }
 
 .token-overflow {
@@ -888,35 +974,73 @@
   color: var(--color-inverse);
 }
 
-.dice-scene {
+.dice-roll-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-dropdown);
   display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-md);
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--color-overlay);
+  color: var(--color-inverse);
+  pointer-events: none;
+  animation: dice-overlay-in var(--dur-short) var(--ease-out) both;
+}
+
+.dice-roll-overlay > strong {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.physics-die-stage {
+  position: relative;
+  display: grid;
+  width: min(58%, 19rem);
+  height: clamp(9rem, 28vw, 14rem);
+  place-items: center;
+  perspective: 44rem;
+  perspective-origin: 50% 36%;
+}
+
+.physics-die-stage__floor {
+  position: absolute;
+  inset: auto 2% 4%;
+  height: 38%;
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  opacity: 0.76;
+  transform: rotateX(68deg);
+}
+
+.physics-die-stage__shadow {
+  position: absolute;
+  inset: auto 31% 14%;
+  height: 14%;
+  border-radius: var(--radius-pill);
+  background: var(--color-shadow);
+  filter: blur(0.55rem);
+  animation: die-shadow var(--dur-dice) var(--ease-out) both;
+}
+
+.physics-die {
+  position: relative;
   width: var(--size-dice);
   height: var(--size-dice);
-  flex: 0 0 var(--size-dice);
-  place-items: center;
-  perspective: 12rem;
-}
-
-.dice-cube {
-  position: relative;
-  width: calc(var(--size-dice) * 0.72);
-  height: calc(var(--size-dice) * 0.72);
   transform-style: preserve-3d;
-  transition: transform var(--dur-short) var(--ease-out);
+  animation: physics-die-roll var(--dur-dice) var(--ease-out) both;
 }
 
-.dice-cube[data-face="1"] { transform: rotateX(0deg) rotateY(0deg); }
-.dice-cube[data-face="2"] { transform: rotateY(-90deg); }
-.dice-cube[data-face="3"] { transform: rotateX(-90deg); }
-.dice-cube[data-face="4"] { transform: rotateX(90deg); }
-.dice-cube[data-face="5"] { transform: rotateY(90deg); }
-.dice-cube[data-face="6"] { transform: rotateY(180deg); }
-
-.dice-cube.is-rolling {
-  animation: dice-roll var(--dur-dice) var(--ease-out) both;
-}
-
-.dice-cube__side {
+.physics-die__face {
   position: absolute;
   inset: 0;
   display: grid;
@@ -925,29 +1049,29 @@
   gap: var(--space-3xs);
   padding: var(--space-2xs);
   border: 1px solid var(--color-rule-strong);
-  border-radius: var(--radius-xs);
+  border-radius: calc(var(--radius-card) * 1.6);
   background: var(--color-paper);
-  box-shadow: var(--shadow-dice);
+  box-shadow: inset 0 0 0 0.22rem var(--color-paper-3), var(--shadow-dice);
   backface-visibility: hidden;
 }
 
-.dice-cube__side i {
+.physics-die__face i {
   display: block;
   border-radius: var(--radius-pill);
   background: var(--color-ink);
   opacity: 0;
 }
 
-.dice-cube__side i.is-visible {
+.physics-die__face i.is-visible {
   opacity: 1;
 }
 
-.dice-cube__side--front { transform: translateZ(calc(var(--size-dice) * 0.36)); }
-.dice-cube__side--back { transform: rotateY(180deg) translateZ(calc(var(--size-dice) * 0.36)); }
-.dice-cube__side--right { transform: rotateY(90deg) translateZ(calc(var(--size-dice) * 0.36)); }
-.dice-cube__side--left { transform: rotateY(-90deg) translateZ(calc(var(--size-dice) * 0.36)); }
-.dice-cube__side--top { transform: rotateX(90deg) translateZ(calc(var(--size-dice) * 0.36)); }
-.dice-cube__side--bottom { transform: rotateX(-90deg) translateZ(calc(var(--size-dice) * 0.36)); }
+.physics-die__face--front { transform: translateZ(calc(var(--size-dice) * 0.5)); }
+.physics-die__face--back { transform: rotateY(180deg) translateZ(calc(var(--size-dice) * 0.5)); }
+.physics-die__face--right { transform: rotateY(90deg) translateZ(calc(var(--size-dice) * 0.5)); }
+.physics-die__face--left { transform: rotateY(-90deg) translateZ(calc(var(--size-dice) * 0.5)); }
+.physics-die__face--top { transform: rotateX(90deg) translateZ(calc(var(--size-dice) * 0.5)); }
+.physics-die__face--bottom { transform: rotateX(-90deg) translateZ(calc(var(--size-dice) * 0.5)); }
 
 .board-console {
   display: grid;
@@ -999,17 +1123,27 @@
   font-size: var(--text-sm);
 }
 
-@keyframes dice-roll {
-  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-  34% { transform: rotateX(245deg) rotateY(190deg) rotateZ(35deg); }
-  68% { transform: rotateX(505deg) rotateY(430deg) rotateZ(75deg); }
-  100% { transform: rotateX(720deg) rotateY(630deg) rotateZ(90deg); }
+@keyframes dice-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes token-hop {
-  0% { transform: translateY(var(--space-xs)) scale(0.9); opacity: 0.72; }
-  55% { transform: translateY(calc(var(--space-xs) * -1)) scale(1); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
+@keyframes physics-die-roll {
+  0% { transform: translate3d(-70%, -105%, 0) rotateX(15deg) rotateY(-25deg) rotateZ(var(--die-tilt)); }
+  18% { transform: translate3d(-34%, -68%, 3rem) rotateX(290deg) rotateY(220deg) rotateZ(80deg); }
+  42% { transform: translate3d(8%, -96%, 5rem) rotateX(610deg) rotateY(520deg) rotateZ(180deg); }
+  65% { transform: translate3d(31%, -34%, 1rem) rotateX(850deg) rotateY(770deg) rotateZ(250deg); }
+  77% { transform: translate3d(17%, -58%, 2rem) rotateX(1010deg) rotateY(930deg) rotateZ(310deg); }
+  90% { transform: translate3d(4%, -12%, 0) rotateX(1080deg) rotateY(1080deg) rotateZ(360deg); }
+  96% { transform: translate3d(1%, -19%, 0) var(--die-final); }
+  100% { transform: translate3d(0, -10%, 0) var(--die-final); }
+}
+
+@keyframes die-shadow {
+  0%, 42% { opacity: 0.2; transform: scale(0.52); }
+  65% { opacity: 0.58; transform: scale(1.08); }
+  77% { opacity: 0.28; transform: scale(0.7); }
+  100% { opacity: 0.65; transform: scale(1); }
 }
 
 @keyframes tile-arrival {
@@ -2575,7 +2709,8 @@
   }
 
   .nav-create,
-  .profile-button {
+  .profile-button,
+  .auth-button {
     display: flex;
   }
 
