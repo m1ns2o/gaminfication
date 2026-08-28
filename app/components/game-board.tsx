@@ -9,9 +9,11 @@ import {
 import {
   boardGeometries,
   skinNames,
+  tileTypeLabels,
   type BoardGeometryId,
   type BoardTile,
   type SkinId,
+  type TileType,
 } from "../lib/board";
 
 type Token = {
@@ -32,6 +34,7 @@ type GameBoardProps = {
   compact?: boolean;
   currentTurnLabel?: string;
   eventLabel?: string;
+  tileTypes?: TileType[];
 };
 
 const tileIcons = {
@@ -96,6 +99,7 @@ export function GameBoard({
   compact = false,
   currentTurnLabel = "김하늘 팀",
   eventLabel = "퀴즈와 카드로 학습하기",
+  tileTypes,
 }: GameBoardProps) {
   const geometry = boardGeometries[geometryId];
   const isLoop = geometryId === "LOOP_24";
@@ -109,13 +113,17 @@ export function GameBoard({
         gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))`,
       }}
     >
-      {geometry.tiles.map((tile) => (
+      {geometry.tiles.map((baseTile) => {
+        const type = tileTypes?.[baseTile.index] ?? baseTile.type;
+        const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
+        return (
         <BoardTileView
           key={tile.index}
           tile={tile}
           tokens={tokens.filter((token) => token.position === tile.index)}
         />
-      ))}
+        );
+      })}
 
       {isLoop && (
         <div className="board-stage">

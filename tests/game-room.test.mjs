@@ -5,9 +5,11 @@ import {
   addPlayer,
   answerQuestion,
   createRoomState,
+  endGame,
   rollDice,
   setPlayerConnected,
   startGame,
+  timeoutQuestion,
 } from "../shared/game-room.ts";
 
 const firstTime = "2026-08-29T00:00:00.000Z";
@@ -92,5 +94,62 @@ test("applies a server-owned educational card effect", () => {
   state = rollDice(state, "host-1", 2, state.version, firstTime, content);
   assert.equal(state.activeCard.title, "탐구 점수");
   assert.equal(state.players[0].score, 5);
+  assert.equal(state.currentPlayerId, "player-1");
+});
+
+test("finishes a race at tile 24 without wrapping to the start", () => {
+  let state = createRoomState({
+    roomId: "race-room", code: "111111", gameId: "race-game", gameTitle: "완주 게임",
+    template: "RACE_24", skin: "CAMPUS", host: { id: "host-1", nickname: "진행자" }, now: firstTime,
+  });
+  state = startGame(state, "host-1", state.version, firstTime);
+  state = { ...state, players: state.players.map((player) => ({ ...player, position: 20 })) };
+  state = rollDice(state, "host-1", 6, state.version, firstTime);
+  assert.equal(state.players[0].position, 23);
+  assert.equal(state.status, "FINALIZED");
+  assert.deepEqual(state.winnerIds, ["host-1"]);
+});
+
+test("supports score, round, timeout, and host-ended completion", () => {
+  const content = {
+    questions: [{ id: "q1", type: "OX", prompt: "정답은 O", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 20, timeLimitSeconds: 10 }],
+    cards: [],
+  };
+  let scoreState = createFixture();
+  scoreState = { ...scoreState, gameRules: { victoryMode: "SCORE", targetScore: 20, maxRounds: 10 } };
+  scoreState = startGame(scoreState, "host-1", scoreState.version, firstTime);
+  scoreState = rollDice(scoreState, "host-1", 1, scoreState.version, firstTime, content);
+  scoreState = answerQuestion(scoreState, "host-1", "O", content, scoreState.version, "2026-08-29T00:00:05.000Z");
+  assert.equal(scoreState.status, "FINALIZED");
+
+  let roundState = createRoomState({ roomId: "round-room", code: "222222", gameId: "g", gameTitle: "라운드", template: "LOOP_24", skin: "CAMPUS", host: { id: "host-1", nickname: "진행자" }, gameRules: { victoryMode: "ROUNDS", targetScore: 100, maxRounds: 1 }, now: firstTime });
+  roundState = startGame(roundState, "host-1", roundState.version, firstTime);
+  roundState = rollDice(roundState, "host-1", 6, roundState.version, firstTime);
+  assert.equal(roundState.status, "FINALIZED");
+
+  let timeoutState = startGame(createFixture(), "host-1", createFixture().version, firstTime);
+  timeoutState = rollDice(timeoutState, "host-1", 1, timeoutState.version, firstTime, content);
+  timeoutState = timeoutQuestion(timeoutState, content, "2026-08-29T00:00:11.000Z");
+  assert.equal(timeoutState.lastAnswer.timedOut, true);
+  assert.equal(timeoutState.players[0].answersCount, 1);
+
+  let endedState = startGame(createFixture(), "host-1", createFixture().version, firstTime);
+  endedState = endGame(endedState, "host-1", endedState.version, firstTime);
+  assert.equal(endedState.lastEvent.finishReason, "HOST_ENDED");
+});
+
+test("uses the teacher-authored tile layout in the authoritative engine", () => {
+  const customTiles = ["START", ...Array.from({ length: 23 }, () => "REST")];
+  let state = createRoomState({
+    roomId: "custom-map", code: "333333", gameId: "g", gameTitle: "직접 만든 맵",
+    template: "LOOP_24", skin: "CAMPUS", host: { id: "host-1", nickname: "진행자" }, tileTypes: customTiles, now: firstTime,
+  });
+  state = addPlayer(state, { id: "player-1", nickname: "참가자", now: firstTime });
+  state = startGame(state, "host-1", state.version, firstTime);
+  state = rollDice(state, "host-1", 1, state.version, firstTime, {
+    questions: [{ id: "q1", type: "OX", prompt: "출제되지 않아야 함", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 10, timeLimitSeconds: 10 }],
+    cards: [],
+  });
+  assert.equal(state.activeQuestion, null);
   assert.equal(state.currentPlayerId, "player-1");
 });

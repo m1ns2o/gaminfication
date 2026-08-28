@@ -19,13 +19,13 @@ export type BoardGeometry = {
   tiles: BoardTile[];
 };
 
-const types: TileType[] = [
+export const defaultTileTypes: TileType[] = [
   "START", "QUIZ", "BONUS", "QUIZ", "EVENT", "QUIZ", "REST", "QUIZ",
   "BONUS", "QUIZ", "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ",
   "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ", "EVENT", "QUIZ",
 ];
 
-const labels: Record<TileType, string> = {
+export const tileTypeLabels: Record<TileType, string> = {
   START: "시작",
   QUIZ: "퀴즈",
   BONUS: "보너스",
@@ -51,8 +51,8 @@ function makeTiles(coords: Array<{ x: number; y: number; rotation: number }>) {
   return coords.map((position, index) => ({
     index,
     ...position,
-    type: types[index],
-    label: labels[types[index]],
+    type: defaultTileTypes[index],
+    label: tileTypeLabels[defaultTileTypes[index]],
   }));
 }
 

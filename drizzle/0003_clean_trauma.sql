@@ -1,0 +1,1 @@
+ALTER TABLE `games` ADD `tile_config_json` text DEFAULT '[]' NOT NULL;

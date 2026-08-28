@@ -4,9 +4,12 @@ import {
   addPlayer,
   answerQuestion,
   createRoomState,
+  endGame,
+  normalizeRoomState,
   rollDice,
   setPlayerConnected,
   startGame,
+  timeoutQuestion,
   type AddPlayerInput,
   type ClientRoomMessage,
   type CreateRoomInput,
@@ -52,7 +55,8 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get([STATE_KEY, ACTIONS_KEY, CONTENT_KEY]);
-      this.state = stored.get(STATE_KEY) as GameRoomState | null ?? null;
+      const storedState = stored.get(STATE_KEY) as GameRoomState | null ?? null;
+      this.state = storedState ? normalizeRoomState(storedState) : null;
       this.recentActionIds = stored.get(ACTIONS_KEY) as string[] | undefined ?? [];
       this.content = stored.get(CONTENT_KEY) as RoomContent | undefined ?? { questions: [], cards: [] };
     });
@@ -97,6 +101,50 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     const session: Session = { participantId, createdAt: new Date().toISOString() };
     await this.ctx.storage.put(`${SESSION_PREFIX}${ticket}`, session);
     return ticket;
+  }
+
+  private async reconcileQuestionAlarm(state: GameRoomState) {
+    if (state.status === "PLAYING" && state.phase === "WAITING_FOR_ANSWER" && state.questionDeadlineAt) {
+      await this.ctx.storage.setAlarm(new Date(state.questionDeadlineAt));
+    } else {
+      await this.ctx.storage.deleteAlarm();
+    }
+  }
+
+  private async persistFinalResults(state: GameRoomState) {
+    const sortedPlayers = [...state.players].sort((left, right) => (
+      right.score - left.score
+      || right.correctAnswers - left.correctAnswers
+      || left.joinedAt.localeCompare(right.joinedAt)
+    ));
+    let currentRank = 1;
+    const ranked = sortedPlayers.map((player, index) => {
+      if (index > 0 && (
+        player.score !== sortedPlayers[index - 1].score
+        || player.correctAnswers !== sortedPlayers[index - 1].correctAnswers
+      )) currentRank = index + 1;
+      return { player, rank: currentRank };
+    });
+    const statements = [
+      this.environment.DB.prepare("UPDATE rooms SET status = ?, state_json = ? WHERE id = ?")
+        .bind("FINALIZED", JSON.stringify(state), state.roomId),
+      this.environment.DB.prepare("DELETE FROM room_results WHERE room_id = ?").bind(state.roomId),
+      ...ranked.map(({ player, rank }) => this.environment.DB.prepare(
+        "INSERT INTO room_results (id, room_id, participant_id, nickname, score, correct_answers, answers_count, rank, is_winner, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).bind(
+        crypto.randomUUID(),
+        state.roomId,
+        player.id,
+        player.nickname,
+        player.score,
+        player.correctAnswers,
+        player.answersCount,
+        rank,
+        state.winnerIds.includes(player.id) ? 1 : 0,
+        state.finishedAt ?? new Date().toISOString(),
+      )),
+    ];
+    await this.environment.DB.batch(statements);
   }
 
   private async initialize(request: Request) {
@@ -192,10 +240,13 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
           ? rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion, new Date().toISOString(), this.content)
           : message.type === "ANSWER_QUESTION"
             ? answerQuestion(current, attachment.participantId, message.answer, this.content, message.expectedVersion)
+            : message.type === "END_GAME"
+              ? endGame(current, attachment.participantId, message.expectedVersion)
           : null;
 
       if (!next) throw new GameRuleError("UNKNOWN_MESSAGE", "지원하지 않는 게임 명령입니다.");
       await this.saveState(next, message.actionId);
+      await this.reconcileQuestionAlarm(next);
       if (message.type === "START_GAME") {
         this.ctx.waitUntil(
           this.environment.DB.prepare("UPDATE rooms SET status = ? WHERE id = ?")
@@ -203,6 +254,9 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
             .run()
             .catch((error) => console.error("Failed to persist room lifecycle status", error)),
         );
+      }
+      if (next.status === "FINALIZED") {
+        this.ctx.waitUntil(this.persistFinalResults(next).catch((error) => console.error("Failed to persist final room results", error)));
       }
       this.broadcastState();
     } catch (error) {
@@ -215,6 +269,23 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
         message: gameError.message,
         state: this.state ?? undefined,
       });
+    }
+  }
+
+  async alarm() {
+    if (!this.state) return;
+    try {
+      const next = timeoutQuestion(this.state, this.content);
+      if (next === this.state) {
+        await this.reconcileQuestionAlarm(this.state);
+        return;
+      }
+      await this.saveState(next);
+      await this.reconcileQuestionAlarm(next);
+      if (next.status === "FINALIZED") await this.persistFinalResults(next);
+      this.broadcastState();
+    } catch (error) {
+      console.error("Failed to resolve question timeout", error);
     }
   }
 

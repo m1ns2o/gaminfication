@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { cards, games, questions, roomParticipants, rooms } from "../../../../db/schema";
 import { parseOptions } from "../../../lib/game-content";
+import { defaultTileTypes, type TileType } from "../../../lib/board";
 import { gameRoomWebSocketPath, initializeGameRoom } from "../../../lib/game-room-server";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../lib/server-api";
 
@@ -13,6 +14,17 @@ async function makeRoomCode() {
     if (existing.length === 0) return code;
   }
   throw new Error("ROOM_CODE_EXHAUSTED");
+}
+
+function roomTileTypes(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    const allowed: TileType[] = ["START", "QUIZ", "BONUS", "EVENT", "REST"];
+    if (Array.isArray(parsed) && parsed.length === 24 && parsed.every((type) => allowed.includes(type as TileType))) return parsed as TileType[];
+  } catch {
+    // Fall back to the documented board template.
+  }
+  return defaultTileTypes;
 }
 
 export async function POST(request: Request) {
@@ -27,6 +39,10 @@ export async function POST(request: Request) {
       title: games.title,
       template: games.template,
       skin: games.skin,
+      victoryMode: games.victoryMode,
+      targetScore: games.targetScore,
+      maxRounds: games.maxRounds,
+      tileConfigJson: games.tileConfigJson,
     }).from(games).where(and(eq(games.id, payload.gameId), eq(games.ownerId, hostId))).limit(1);
     if (!ownedGame) return badRequest("GAME_NOT_FOUND", "게임을 찾을 수 없습니다.");
     const [gameQuestions, gameCards] = await Promise.all([
@@ -59,6 +75,14 @@ export async function POST(request: Request) {
         gameTitle: ownedGame.title,
         template: ownedGame.template,
         skin: ownedGame.skin,
+        gameRules: {
+          victoryMode: ownedGame.victoryMode === "AUTO"
+            ? ownedGame.template === "RACE_24" ? "FINISH" : "SCORE"
+            : ownedGame.victoryMode,
+          targetScore: ownedGame.targetScore,
+          maxRounds: ownedGame.maxRounds,
+        },
+        tileTypes: roomTileTypes(ownedGame.tileConfigJson),
         questions: gameQuestions.map((question) => ({
           id: question.id,
           type: question.type,

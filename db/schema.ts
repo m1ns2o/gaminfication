@@ -22,6 +22,10 @@ export const games = sqliteTable("games", {
   visibility: text("visibility", { enum: ["PRIVATE", "UNLISTED", "PUBLIC"] }).notNull().default("PRIVATE"),
   questionsCount: integer("questions_count").notNull().default(0),
   cardsCount: integer("cards_count").notNull().default(0),
+  victoryMode: text("victory_mode", { enum: ["AUTO", "SCORE", "ROUNDS", "FINISH"] }).notNull().default("AUTO"),
+  targetScore: integer("target_score").notNull().default(100),
+  maxRounds: integer("max_rounds").notNull().default(10),
+  tileConfigJson: text("tile_config_json").notNull().default("[]"),
   sourceVersionId: text("source_version_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
@@ -99,4 +103,20 @@ export const roomParticipants = sqliteTable("room_participants", {
 }, (table) => [
   uniqueIndex("idx_participants_room_auth").on(table.roomId, table.authUserId),
   index("idx_participants_room").on(table.roomId),
+]);
+
+export const roomResults = sqliteTable("room_results", {
+  id: text("id").primaryKey(),
+  roomId: text("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+  participantId: text("participant_id").notNull().references(() => roomParticipants.id, { onDelete: "cascade" }),
+  nickname: text("nickname").notNull(),
+  score: integer("score").notNull(),
+  correctAnswers: integer("correct_answers").notNull().default(0),
+  answersCount: integer("answers_count").notNull().default(0),
+  rank: integer("rank").notNull(),
+  isWinner: integer("is_winner", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_room_results_participant").on(table.roomId, table.participantId),
+  index("idx_room_results_rank").on(table.roomId, table.rank),
 ]);

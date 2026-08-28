@@ -38,6 +38,7 @@ Client commands:
 { type: "START_GAME", actionId, expectedVersion }
 { type: "ROLL_DICE", actionId, expectedVersion }
 { type: "ANSWER_QUESTION", actionId, answer, expectedVersion }
+{ type: "END_GAME", actionId, expectedVersion }
 ```
 
 Server messages:
@@ -66,6 +67,8 @@ Server messages:
 - 티켓은 해당 Durable Object 내부에만 저장되고 6시간 후 거부됩니다.
 - 서버가 주사위를 생성하고 현재 차례와 상태 버전을 검증합니다.
 - 출제 중인 `ROOM_STATE`에는 정답을 넣지 않고 Durable Object가 비공개 정답으로 채점합니다.
+- 문제 마감 시각을 절대 시각으로 저장하고 Durable Object Alarm이 휴면 상태에서도 시간초과를 처리합니다.
+- 게임 종료 시 최종 상태와 참가자별 순위·점수·정답 수를 D1에 저장합니다.
 - 연결 종료 시 다른 탭 연결이 없는 참가자만 offline으로 표시합니다.
 - 재접속은 같은 티켓으로 지수형 backoff를 사용하며 접속 직후 전체 snapshot을 받습니다.
 
@@ -73,9 +76,10 @@ Server messages:
 
 구현된 흐름:
 
-1. 퀴즈 칸에서 객관식·주관식·O/X 문제를 순환 출제
+1. 교사가 편집한 24개 칸 구성에 따라 객관식·주관식·O/X 문제를 순환 출제
 2. 현재 차례 참가자의 답만 받고 서버에서 정답과 배점을 검증
 3. 보너스·이벤트 칸에서 이동, 점수, 추가 턴, 쉬기 카드 적용
 4. 토지 구매·소유권·통행료는 교육 목표에 맞지 않아 제외
+5. 목표 점수·최대 라운드·직선형 완주 또는 진행자 종료로 게임 마감
 
-다음 단계는 제한시간 Alarm, 게임 종료 조건, D1 수업 결과 저장입니다.
+다음 단계는 팀전·전원 동시 문제, 문항별 상세 결과 리포트와 운영 인증 강화입니다.

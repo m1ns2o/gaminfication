@@ -5,9 +5,11 @@ export const MAX_ROOM_PLAYERS = 40;
 export type RoomStatus = "LOBBY" | "PLAYING" | "FINALIZED";
 export type PlayerRole = "HOST" | "PLAYER";
 export type PlayerSymbol = "book" | "bulb" | "compass" | "leaf" | "rocket";
-export type GamePhase = "WAITING_FOR_ROLL" | "WAITING_FOR_ANSWER";
+export type GamePhase = "WAITING_FOR_ROLL" | "WAITING_FOR_ANSWER" | "FINISHED";
+export type VictoryMode = "SCORE" | "ROUNDS" | "FINISH";
 export type RoomQuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER" | "OX";
 export type RoomCardEffect = "MOVE_FORWARD" | "MOVE_BACK" | "SCORE_BONUS" | "EXTRA_TURN" | "SKIP_TURN";
+export type RoomTileType = "START" | "QUIZ" | "BONUS" | "EVENT" | "REST";
 
 export type RoomQuestion = {
   id: string;
@@ -45,11 +47,13 @@ export type RoomPlayer = {
   position: number;
   score: number;
   skipTurns: number;
+  answersCount: number;
+  correctAnswers: number;
   joinedAt: string;
 };
 
 export type RoomEvent = {
-  type: "ROOM_CREATED" | "PLAYER_JOINED" | "PLAYER_CONNECTION_CHANGED" | "GAME_STARTED" | "DICE_ROLLED" | "QUESTION_PRESENTED" | "QUESTION_ANSWERED" | "CARD_DRAWN";
+  type: "ROOM_CREATED" | "PLAYER_JOINED" | "PLAYER_CONNECTION_CHANGED" | "GAME_STARTED" | "DICE_ROLLED" | "QUESTION_PRESENTED" | "QUESTION_ANSWERED" | "CARD_DRAWN" | "GAME_FINISHED";
   at: string;
   actorId?: string;
   dice?: number;
@@ -59,6 +63,8 @@ export type RoomEvent = {
   cardId?: string;
   correct?: boolean;
   pointsAwarded?: number;
+  timedOut?: boolean;
+  finishReason?: "SCORE_TARGET" | "ROUND_LIMIT" | "FINISH_TILE" | "HOST_ENDED";
 };
 
 export type GameRoomState = {
@@ -70,6 +76,12 @@ export type GameRoomState = {
   skin: SkinId;
   status: RoomStatus;
   phase: GamePhase;
+  gameRules: {
+    victoryMode: VictoryMode;
+    targetScore: number;
+    maxRounds: number;
+  };
+  tileTypes: RoomTileType[];
   version: number;
   round: number;
   turnIndex: number;
@@ -78,6 +90,7 @@ export type GameRoomState = {
   questionCursor: number;
   cardCursor: number;
   activeQuestion: RoomQuestion | null;
+  questionDeadlineAt: string | null;
   activeCard: RoomCard | null;
   lastAnswer: {
     playerId: string;
@@ -85,7 +98,10 @@ export type GameRoomState = {
     correctAnswer: string;
     explanation: string;
     pointsAwarded: number;
+    timedOut: boolean;
   } | null;
+  winnerIds: string[];
+  finishedAt: string | null;
   players: RoomPlayer[];
   lastEvent: RoomEvent;
   updatedAt: string;
@@ -98,6 +114,8 @@ export type CreateRoomInput = Pick<
   host: Pick<RoomPlayer, "id" | "nickname">;
   questions?: RoomQuestionDefinition[];
   cards?: RoomCard[];
+  gameRules?: GameRoomState["gameRules"];
+  tileTypes?: RoomTileType[];
   now?: string;
 };
 
@@ -110,14 +128,15 @@ export type ClientRoomMessage =
   | { type: "SYNC" }
   | { type: "START_GAME"; actionId: string; expectedVersion?: number }
   | { type: "ROLL_DICE"; actionId: string; expectedVersion?: number }
-  | { type: "ANSWER_QUESTION"; actionId: string; answer: string; expectedVersion?: number };
+  | { type: "ANSWER_QUESTION"; actionId: string; answer: string; expectedVersion?: number }
+  | { type: "END_GAME"; actionId: string; expectedVersion?: number };
 
 export type ServerRoomMessage =
   | { type: "ROOM_STATE"; state: GameRoomState }
   | { type: "ROOM_ERROR"; code: string; message: string; state?: GameRoomState };
 
 const playerSymbols: PlayerSymbol[] = ["book", "bulb", "compass", "leaf", "rocket"];
-const tileTypes = [
+const defaultRoomTileTypes: RoomTileType[] = [
   "START", "QUIZ", "BONUS", "QUIZ", "EVENT", "QUIZ", "REST", "QUIZ",
   "BONUS", "QUIZ", "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ",
   "EVENT", "QUIZ", "REST", "QUIZ", "BONUS", "QUIZ", "EVENT", "QUIZ",
@@ -151,6 +170,29 @@ function assertVersion(state: GameRoomState, expectedVersion?: number) {
   }
 }
 
+export function normalizeRoomState(state: GameRoomState): GameRoomState {
+  return {
+    ...state,
+    phase: state.status === "FINALIZED" ? "FINISHED" : (state.phase ?? "WAITING_FOR_ROLL"),
+    gameRules: state.gameRules ?? {
+      victoryMode: state.template === "RACE_24" ? "FINISH" : "SCORE",
+      targetScore: 100,
+      maxRounds: 10,
+    },
+    tileTypes: state.tileTypes?.length === 24 ? state.tileTypes : [...defaultRoomTileTypes],
+    questionDeadlineAt: state.questionDeadlineAt ?? null,
+    winnerIds: state.winnerIds ?? [],
+    finishedAt: state.finishedAt ?? null,
+    lastAnswer: state.lastAnswer ? { ...state.lastAnswer, timedOut: state.lastAnswer.timedOut ?? false } : null,
+    players: state.players.map((player) => ({
+      ...player,
+      skipTurns: player.skipTurns ?? 0,
+      answersCount: player.answersCount ?? 0,
+      correctAnswers: player.correctAnswers ?? 0,
+    })),
+  };
+}
+
 export function createRoomState(input: CreateRoomInput): GameRoomState {
   const now = input.now ?? new Date().toISOString();
   const host: RoomPlayer = {
@@ -162,6 +204,8 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     position: 0,
     score: 0,
     skipTurns: 0,
+    answersCount: 0,
+    correctAnswers: 0,
     joinedAt: now,
   };
 
@@ -174,6 +218,12 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     skin: input.skin,
     status: "LOBBY",
     phase: "WAITING_FOR_ROLL",
+    gameRules: input.gameRules ?? {
+      victoryMode: input.template === "RACE_24" ? "FINISH" : "SCORE",
+      targetScore: 100,
+      maxRounds: 10,
+    },
+    tileTypes: input.tileTypes?.length === 24 ? input.tileTypes : [...defaultRoomTileTypes],
     version: 1,
     round: 1,
     turnIndex: 0,
@@ -182,8 +232,11 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     questionCursor: 0,
     cardCursor: 0,
     activeQuestion: null,
+    questionDeadlineAt: null,
     activeCard: null,
     lastAnswer: null,
+    winnerIds: [],
+    finishedAt: null,
     players: [host],
     lastEvent: { type: "ROOM_CREATED", at: now, actorId: host.id },
     updatedAt: now,
@@ -210,6 +263,8 @@ export function addPlayer(state: GameRoomState, input: AddPlayerInput): GameRoom
     position: 0,
     score: 0,
     skipTurns: 0,
+    answersCount: 0,
+    correctAnswers: 0,
     joinedAt: now,
   };
 
@@ -257,6 +312,62 @@ export function startGame(
   );
 }
 
+function rankedWinnerIds(players: RoomPlayer[]) {
+  const highestScore = Math.max(...players.map((player) => player.score));
+  return players.filter((player) => player.score === highestScore).map((player) => player.id);
+}
+
+function finishReason(state: GameRoomState) {
+  if (state.gameRules.victoryMode === "FINISH" && state.players.some((player) => player.position >= 23)) return "FINISH_TILE" as const;
+  if (state.gameRules.victoryMode === "SCORE" && state.players.some((player) => player.score >= state.gameRules.targetScore)) return "SCORE_TARGET" as const;
+  if (state.gameRules.victoryMode === "ROUNDS" && state.round > state.gameRules.maxRounds) return "ROUND_LIMIT" as const;
+  return null;
+}
+
+function finishGameState(
+  state: GameRoomState,
+  reason: NonNullable<RoomEvent["finishReason"]>,
+  now: string,
+  event: Omit<RoomEvent, "type" | "at" | "finishReason"> = {},
+) {
+  const winnerIds = reason === "FINISH_TILE"
+    ? state.players.filter((player) => player.position >= 23).map((player) => player.id)
+    : rankedWinnerIds(state.players);
+  return nextVersion(
+    {
+      ...state,
+      status: "FINALIZED",
+      phase: "FINISHED",
+      currentPlayerId: null,
+      activeQuestion: null,
+      questionDeadlineAt: null,
+      activeCard: null,
+      winnerIds,
+      finishedAt: now,
+      round: Math.min(state.round, state.gameRules.maxRounds),
+    },
+    { ...event, type: "GAME_FINISHED", at: now, finishReason: reason },
+  );
+}
+
+function completeTransition(state: GameRoomState, event: RoomEvent) {
+  const reason = finishReason(state);
+  if (reason) {
+    return finishGameState(state, reason, event.at, {
+      actorId: event.actorId,
+      dice: event.dice,
+      from: event.from,
+      to: event.to,
+      questionId: event.questionId,
+      cardId: event.cardId,
+      correct: event.correct,
+      pointsAwarded: event.pointsAwarded,
+      timedOut: event.timedOut,
+    });
+  }
+  return nextVersion(state, event);
+}
+
 export function rollDice(
   state: GameRoomState,
   actorId: string,
@@ -275,9 +386,15 @@ export function rollDice(
   if (!actor) throw new GameRuleError("PLAYER_NOT_FOUND", "참가자를 찾을 수 없습니다.");
 
   const from = actor.position;
-  const to = (from + dice) % 24;
+  const to = state.template === "RACE_24" ? Math.min(from + dice, 23) : (from + dice) % 24;
   const movedPlayers = state.players.map((player) => player.id === actorId ? { ...player, position: to } : player);
-  const tileType = tileTypes[to];
+  const tileType = state.tileTypes[to];
+
+  const movedState = { ...state, lastRoll: dice, players: movedPlayers, activeQuestion: null, questionDeadlineAt: null, activeCard: null, lastAnswer: null };
+  const movementFinishReason = finishReason(movedState);
+  if (movementFinishReason) {
+    return finishGameState(movedState, movementFinishReason, now, { actorId, dice, from, to });
+  }
 
   if (tileType === "QUIZ" && content.questions.length > 0) {
     const definition = content.questions[state.questionCursor % content.questions.length];
@@ -296,6 +413,7 @@ export function rollDice(
         lastRoll: dice,
         questionCursor: state.questionCursor + 1,
         activeQuestion,
+        questionDeadlineAt: new Date(new Date(now).getTime() + definition.timeLimitSeconds * 1000).toISOString(),
         activeCard: null,
         lastAnswer: null,
         players: movedPlayers,
@@ -310,28 +428,29 @@ export function rollDice(
     const keepTurn = card.effectType === "EXTRA_TURN";
     players = players.map((player) => {
       if (player.id !== actorId) return player;
-      if (card.effectType === "MOVE_FORWARD") return { ...player, position: (player.position + card.effectValue) % 24 };
-      if (card.effectType === "MOVE_BACK") return { ...player, position: (player.position - card.effectValue + 24) % 24 };
+      if (card.effectType === "MOVE_FORWARD") return { ...player, position: state.template === "RACE_24" ? Math.min(player.position + card.effectValue, 23) : (player.position + card.effectValue) % 24 };
+      if (card.effectType === "MOVE_BACK") return { ...player, position: state.template === "RACE_24" ? Math.max(player.position - card.effectValue, 0) : (player.position - card.effectValue + 24) % 24 };
       if (card.effectType === "SCORE_BONUS") return { ...player, score: player.score + card.effectValue };
       if (card.effectType === "SKIP_TURN") return { ...player, skipTurns: player.skipTurns + 1 };
       return player;
     });
     const turn = keepTurn ? { turnIndex: state.turnIndex, currentPlayerId: actorId, round: state.round, players } : advanceTurn(state, players);
-    return nextVersion(
-      { ...state, ...turn, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: state.cardCursor + 1, activeQuestion: null, activeCard: card, lastAnswer: null },
+    return completeTransition(
+      { ...state, ...turn, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: state.cardCursor + 1, activeQuestion: null, questionDeadlineAt: null, activeCard: card, lastAnswer: null },
       { type: "CARD_DRAWN", at: now, actorId, dice, from, to, cardId: card.id },
     );
   }
 
   const turn = advanceTurn(state, movedPlayers);
 
-  return nextVersion(
+  return completeTransition(
     {
       ...state,
       ...turn,
       phase: "WAITING_FOR_ROLL",
       lastRoll: dice,
       activeQuestion: null,
+      questionDeadlineAt: null,
       activeCard: null,
       lastAnswer: null,
     },
@@ -370,23 +489,44 @@ export function answerQuestion(
     throw new GameRuleError("NO_ACTIVE_QUESTION", "현재 답할 문제가 없습니다.");
   }
   if (state.currentPlayerId !== actorId) throw new GameRuleError("NOT_YOUR_TURN", "현재 차례가 아닙니다.");
+  if (answer.length > 500) throw new GameRuleError("ANSWER_TOO_LONG", "답안은 500자 이내로 입력하세요.");
   const definition = content.questions.find((question) => question.id === state.activeQuestion?.id);
   if (!definition) throw new GameRuleError("QUESTION_NOT_FOUND", "문제 정답 정보를 찾을 수 없습니다.");
+  if (state.questionDeadlineAt && new Date(now).getTime() >= new Date(state.questionDeadlineAt).getTime()) {
+    return resolveQuestion(state, definition, actorId, false, true, now);
+  }
   const submitted = normalizeAnswer(answer);
   const acceptedAnswers = definition.type === "SHORT_ANSWER"
     ? definition.correctAnswer.split(",").map(normalizeAnswer)
     : [normalizeAnswer(definition.correctAnswer)];
   const correct = submitted.length > 0 && acceptedAnswers.includes(submitted);
+  return resolveQuestion(state, definition, actorId, correct, false, now);
+}
+
+function resolveQuestion(
+  state: GameRoomState,
+  definition: RoomQuestionDefinition,
+  actorId: string,
+  correct: boolean,
+  timedOut: boolean,
+  now: string,
+) {
   const pointsAwarded = correct ? definition.points : 0;
-  const scoredPlayers = state.players.map((player) => player.id === actorId ? { ...player, score: player.score + pointsAwarded } : player);
+  const scoredPlayers = state.players.map((player) => player.id === actorId ? {
+    ...player,
+    score: player.score + pointsAwarded,
+    answersCount: player.answersCount + 1,
+    correctAnswers: player.correctAnswers + (correct ? 1 : 0),
+  } : player);
   const turn = advanceTurn(state, scoredPlayers);
 
-  return nextVersion(
+  return completeTransition(
     {
       ...state,
       ...turn,
       phase: "WAITING_FOR_ROLL",
       activeQuestion: null,
+      questionDeadlineAt: null,
       activeCard: null,
       lastAnswer: {
         playerId: actorId,
@@ -394,8 +534,34 @@ export function answerQuestion(
         correctAnswer: definition.correctAnswer,
         explanation: definition.explanation,
         pointsAwarded,
+        timedOut,
       },
     },
-    { type: "QUESTION_ANSWERED", at: now, actorId, questionId: definition.id, correct, pointsAwarded },
+    { type: "QUESTION_ANSWERED", at: now, actorId, questionId: definition.id, correct, pointsAwarded, timedOut },
   );
+}
+
+export function timeoutQuestion(
+  state: GameRoomState,
+  content: RoomContent,
+  now = new Date().toISOString(),
+) {
+  if (state.status !== "PLAYING" || state.phase !== "WAITING_FOR_ANSWER" || !state.activeQuestion || !state.currentPlayerId) return state;
+  const definition = content.questions.find((question) => question.id === state.activeQuestion?.id);
+  if (!definition) throw new GameRuleError("QUESTION_NOT_FOUND", "문제 정답 정보를 찾을 수 없습니다.");
+  if (state.questionDeadlineAt && new Date(now).getTime() < new Date(state.questionDeadlineAt).getTime()) return state;
+  return resolveQuestion(state, definition, state.currentPlayerId, false, true, now);
+}
+
+export function endGame(
+  state: GameRoomState,
+  actorId: string,
+  expectedVersion?: number,
+  now = new Date().toISOString(),
+) {
+  assertVersion(state, expectedVersion);
+  const actor = state.players.find((player) => player.id === actorId);
+  if (actor?.role !== "HOST") throw new GameRuleError("HOST_ONLY", "진행자만 게임을 종료할 수 있습니다.");
+  if (state.status !== "PLAYING") throw new GameRuleError("GAME_NOT_PLAYING", "진행 중인 게임만 종료할 수 있습니다.");
+  return finishGameState(state, "HOST_ENDED", now, { actorId });
 }

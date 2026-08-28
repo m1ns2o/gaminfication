@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, CircleHelp, Sparkles, XCircle } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { GameRoomState } from "../../shared/game-room";
 
 export function RoomPrompt({
@@ -15,6 +15,18 @@ export function RoomPrompt({
 }) {
   const [answer, setAnswer] = useState("");
   const question = state.activeQuestion;
+  const [remainingSeconds, setRemainingSeconds] = useState(() => state.questionDeadlineAt
+    ? Math.max(0, Math.ceil((new Date(state.questionDeadlineAt).getTime() - Date.now()) / 1000))
+    : 0);
+
+  useEffect(() => {
+    if (!state.questionDeadlineAt || !question) return;
+    const deadline = new Date(state.questionDeadlineAt).getTime();
+    const timer = window.setInterval(() => {
+      setRemainingSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [question, state.questionDeadlineAt]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,10 +34,20 @@ export function RoomPrompt({
     onAnswer(answer);
   }
 
+  if (state.status === "FINALIZED") {
+    const ranked = [...state.players].sort((left, right) => right.score - left.score || right.correctAnswers - left.correctAnswers);
+    return (
+      <section className="room-prompt room-results" aria-labelledby="room-results-heading">
+        <div><span className="mono-label">GAME COMPLETE</span><h3 id="room-results-heading">수업 게임 결과</h3><p>문제 풀이와 점수가 안전하게 저장되었습니다.</p></div>
+        <ol>{ranked.map((player, index) => <li key={player.id} className={state.winnerIds.includes(player.id) ? "is-winner" : ""}><strong>{index + 1}</strong><span><b>{player.nickname}</b><small>{player.correctAnswers}/{player.answersCount} 정답</small></span><em>{player.score}점</em></li>)}</ol>
+      </section>
+    );
+  }
+
   if (question) {
     return (
       <section className="room-prompt room-prompt--question" aria-labelledby="live-question-heading">
-        <div className="room-prompt__meta"><span><CircleHelp aria-hidden="true" /> 퀴즈 · {question.points}점</span><span>{question.timeLimitSeconds}초 권장</span></div>
+        <div className="room-prompt__meta"><span><CircleHelp aria-hidden="true" /> 퀴즈 · {question.points}점</span><span className={remainingSeconds <= 5 ? "is-urgent" : ""}>{remainingSeconds}초</span></div>
         <h3 id="live-question-heading">{question.prompt}</h3>
         {!canAnswer && <p>현재 차례 참가자가 답을 고르고 있습니다.</p>}
         {canAnswer && question.type === "MULTIPLE_CHOICE" && <div className="room-answer-options">{question.options.map((option, index) => <button key={`${index}-${option}`} type="button" onClick={() => onAnswer(option)}><span>{index + 1}</span>{option}</button>)}</div>}
@@ -47,7 +69,7 @@ export function RoomPrompt({
     return (
       <section className={`room-prompt room-prompt--result ${state.lastAnswer.correct ? "is-correct" : "is-wrong"}`} aria-live="polite">
         {state.lastAnswer.correct ? <CheckCircle2 aria-hidden="true" /> : <XCircle aria-hidden="true" />}
-        <div><h3>{state.lastAnswer.correct ? `정답! +${state.lastAnswer.pointsAwarded}점` : "아쉬워요"}</h3><p>정답: {state.lastAnswer.correctAnswer}{state.lastAnswer.explanation ? ` · ${state.lastAnswer.explanation}` : ""}</p></div>
+        <div><h3>{state.lastAnswer.correct ? `정답! +${state.lastAnswer.pointsAwarded}점` : state.lastAnswer.timedOut ? "시간이 끝났어요" : "아쉬워요"}</h3><p>정답: {state.lastAnswer.correctAnswer}{state.lastAnswer.explanation ? ` · ${state.lastAnswer.explanation}` : ""}</p></div>
       </section>
     );
   }

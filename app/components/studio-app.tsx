@@ -34,11 +34,13 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { GameBoard } from "./game-board";
 import { ContentEditor } from "./content-editor";
 import { RoomPrompt } from "./room-prompt";
-import { skinNames, type BoardGeometryId, type SkinId } from "../lib/board";
+import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
+import { TileEditor } from "./tile-editor";
+import { defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
 import { useGameRoom } from "../lib/use-game-room";
 
 type View = "dashboard" | "library" | "editor";
-type EditorSection = "questions" | "cards";
+type EditorSection = "settings" | "tiles" | "questions" | "cards";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 
 type Game = {
@@ -54,6 +56,10 @@ type Game = {
   updated: string;
   questions: number;
   cards: number;
+  victoryMode?: "AUTO" | "SCORE" | "ROUNDS" | "FINISH";
+  targetScore?: number;
+  maxRounds?: number;
+  tileTypes?: TileType[];
 };
 
 type ApiGame = {
@@ -69,9 +75,20 @@ type ApiGame = {
   updatedAt: string;
   questionsCount: number;
   cardsCount: number;
+  victoryMode: "AUTO" | "SCORE" | "ROUNDS" | "FINISH";
+  targetScore: number;
+  maxRounds: number;
+  tileConfigJson: string;
 };
 
 function fromApiGame(game: ApiGame): Game {
+  let tileTypes: TileType[] = [...defaultTileTypes];
+  try {
+    const parsed = JSON.parse(game.tileConfigJson) as TileType[];
+    if (parsed.length === 24) tileTypes = parsed;
+  } catch {
+    // Older games use the default board layout.
+  }
   return {
     id: game.id,
     title: game.title,
@@ -85,6 +102,10 @@ function fromApiGame(game: ApiGame): Game {
     updated: new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(game.updatedAt)),
     questions: game.questionsCount,
     cards: game.cardsCount,
+    victoryMode: game.victoryMode,
+    targetScore: game.targetScore,
+    maxRounds: game.maxRounds,
+    tileTypes,
   };
 }
 
@@ -358,12 +379,15 @@ export function StudioApp() {
     : tokens;
   const liveGeometry = realtime.roomState?.template ?? geometry;
   const liveSkin = realtime.roomState?.skin ?? skin;
+  const liveTileTypes = realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes;
   const liveRound = realtime.roomState?.round ?? round;
   const liveLastRoll = realtime.roomState?.lastRoll ?? lastRoll;
   const currentTurnLabel = realtime.roomState?.players.find(
     (player) => player.id === realtime.roomState?.currentPlayerId,
-  )?.nickname ?? "김하늘 팀";
-  const boardEventLabel = realtime.roomState?.activeQuestion
+  )?.nickname ?? (realtime.roomState?.status === "FINALIZED" ? "게임 종료" : "김하늘 팀");
+  const boardEventLabel = realtime.roomState?.status === "FINALIZED"
+    ? "최종 결과를 확인하세요"
+    : realtime.roomState?.activeQuestion
     ? "퀴즈에 답할 차례"
     : realtime.roomState?.activeCard
       ? `카드 · ${realtime.roomState.activeCard.title}`
@@ -394,10 +418,12 @@ export function StudioApp() {
   const lastRoomEvent = realtime.roomState?.lastEvent;
   const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
   const announcedMessage = realtime.error
-    ?? (lastRoomEvent?.type === "QUESTION_PRESENTED"
+    ?? (lastRoomEvent?.type === "GAME_FINISHED"
+      ? "게임이 종료되었습니다. 최종 결과를 확인하세요."
+      : lastRoomEvent?.type === "QUESTION_PRESENTED"
       ? `${roomEventActor?.nickname ?? "참가자"}에게 퀴즈가 출제되었습니다.`
       : lastRoomEvent?.type === "QUESTION_ANSWERED"
-        ? lastRoomEvent.correct ? `정답입니다. ${lastRoomEvent.pointsAwarded ?? 0}점을 얻었습니다.` : "오답입니다. 정답과 해설을 확인하세요."
+        ? lastRoomEvent.correct ? `정답입니다. ${lastRoomEvent.pointsAwarded ?? 0}점을 얻었습니다.` : lastRoomEvent.timedOut ? "제한시간이 끝났습니다." : "오답입니다. 정답과 해설을 확인하세요."
         : lastRoomEvent?.type === "CARD_DRAWN" && realtime.roomState?.activeCard
           ? `${realtime.roomState.activeCard.title} 카드가 적용되었습니다.`
           : lastRoomEvent?.type === "DICE_ROLLED" && lastRoomEvent.dice
@@ -413,6 +439,16 @@ export function StudioApp() {
 
   function updateContentCounts(questions: number, cards: number) {
     setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, questions, cards } : game));
+  }
+
+  function updateGameSettings(saved: EditableGameSettings) {
+    setGames((current) => current.map((game) => game.id === saved.id ? { ...game, ...saved, updated: "방금 전" } : game));
+    setGeometry(saved.template);
+    setSkin(saved.skin);
+  }
+
+  function updateTileTypes(tileTypes: TileType[]) {
+    setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, tileTypes } : game));
   }
 
   function rollDice() {
@@ -623,9 +659,10 @@ export function StudioApp() {
               onRoll={liveGeometry === "LOOP_24" && (!realtime.roomState || realtime.canRoll) ? rollDice : undefined}
               currentTurnLabel={currentTurnLabel}
               eventLabel={boardEventLabel}
+              tileTypes={liveTileTypes}
             />
 
-            {realtime.roomState?.status === "PLAYING" && (
+            {realtime.roomState && realtime.roomState.status !== "LOBBY" && (
               <RoomPrompt
                 key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
                 state={realtime.roomState}
@@ -642,6 +679,7 @@ export function StudioApp() {
               </div>
               <div className="workbench-actions__buttons">
                 <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
+                {realtime.canEnd && <button className="button button--danger" type="button" onClick={() => realtime.end()}>게임 종료</button>}
                 <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : "방 만들기"}</button>
               </div>
             </div>
@@ -739,20 +777,48 @@ export function StudioApp() {
                 ["카드 덱", Sparkles], ["테스트 플레이", Play], ["발행", Share2],
               ].map(([label, Icon], index) => {
                 const StepIcon = Icon as typeof Check;
-                const isCurrent = (index === 3 && editorSection === "questions") || (index === 4 && editorSection === "cards");
-                return <button key={String(label)} type="button" className={isCurrent ? "is-current" : index < 3 ? "is-complete" : ""} onClick={() => { if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
+                const isCurrent = ((index === 0 || index === 1) && editorSection === "settings") || (index === 2 && editorSection === "tiles") || (index === 3 && editorSection === "questions") || (index === 4 && editorSection === "cards");
+                return <button key={String(label)} type="button" className={isCurrent ? "is-current" : index < 3 ? "is-complete" : ""} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("tiles"); else if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
               })}
             </aside>
-            <ContentEditor
-              gameId={selectedGame.id}
-              enabled={persistedGameIds.has(selectedGame.id)}
-              section={editorSection}
-              onMessage={setLiveMessage}
-              onCountsChange={updateContentCounts}
-            />
+            {editorSection === "settings" ? (
+              <GameSettingsEditor
+                key={selectedGame.id}
+                game={{
+                  id: selectedGame.id,
+                  title: selectedGame.title,
+                  description: selectedGame.description,
+                  subject: selectedGame.subject,
+                  grade: selectedGame.grade,
+                  template: selectedGame.template,
+                  skin: selectedGame.skin,
+                  victoryMode: selectedGame.victoryMode ?? "AUTO",
+                  targetScore: selectedGame.targetScore ?? 100,
+                  maxRounds: selectedGame.maxRounds ?? 10,
+                }}
+                onSaved={updateGameSettings}
+                onMessage={setLiveMessage}
+              />
+            ) : editorSection === "tiles" ? (
+              <TileEditor
+                key={selectedGame.id}
+                gameId={selectedGame.id}
+                initialTileTypes={selectedGame.tileTypes}
+                onSaved={updateTileTypes}
+                onMessage={setLiveMessage}
+              />
+            ) : (
+              <ContentEditor
+                gameId={selectedGame.id}
+                enabled={persistedGameIds.has(selectedGame.id)}
+                section={editorSection}
+                onMessage={setLiveMessage}
+                onCountsChange={updateContentCounts}
+              />
+            )}
             <aside className="editor-preview" aria-label="보드 미리보기">
               <div><h2>맵 미리보기</h2><span>{skinNames[skin]}</span></div>
-              <GameBoard geometryId={geometry} skinId={skin} tokens={tokens.slice(0, 2)} round={1} lastRoll={3} compact />
+              <GameBoard geometryId={geometry} skinId={skin} tokens={tokens.slice(0, 2)} round={1} lastRoll={3} tileTypes={selectedGame.tileTypes} compact />
               <p>문제 {selectedGame.questions}개와 카드 {selectedGame.cards}개가 해당 칸에 순환 배치됩니다.</p>
             </aside>
           </div>
