@@ -1,4 +1,4 @@
-/* Hallmark · macrostructure: Workbench · genre: playful · theme: Hum · tone: bright-exact · anchor hue: indigo · nav: N7 · footer: Ft8 · contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · pre-emit critique: P5 H5 E5 S5 R4 V5 */
+/* Hallmark · macrostructure: Workbench · genre: playful · theme: Hum · tone: playful-exact · anchor hue: indigo · enrichment: 3D dice + stepped tokens · nav: N7 · footer: Ft8 · contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · pre-emit critique: P5 H5 E5 S5 R4 V5 */
 :root {
   --color-paper: oklch(97% 0.014 91);
   --color-paper-2: oklch(94% 0.022 91);
@@ -62,6 +62,10 @@
   --dur-micro: 120ms;
   --dur-short: 220ms;
   --dur-long: 420ms;
+  --dur-step: 180ms;
+  --dur-dice: 720ms;
+
+  --size-dice: 2.5rem;
 
   --rule-hairline: 1px solid var(--color-rule);
   --rule-strong: 2px solid var(--color-ink);
@@ -74,6 +78,7 @@
   --shadow-contact: 0 2px 0 var(--color-shadow);
   --shadow-raised: 0 14px 34px -20px var(--color-shadow);
   --shadow-board: 0 20px 44px -24px var(--color-shadow);
+  --shadow-dice: 0 0.22rem 0 var(--color-shadow);
 
   --z-base: 1;
   --z-raised: 10;

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { cards, games, questions, roomParticipants, rooms } from "../../../../db/schema";
 import { parseOptions } from "../../../lib/game-content";
-import { defaultTileTypes, type TileType } from "../../../lib/board";
+import { boardGeometries, defaultTileTypes, type TileType } from "../../../lib/board";
 import { gameRoomWebSocketPath, initializeGameRoom } from "../../../lib/game-room-server";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../lib/server-api";
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         skin: ownedGame.skin,
         gameRules: {
           victoryMode: ownedGame.victoryMode === "AUTO"
-            ? ownedGame.template === "RACE_24" ? "FINISH" : "SCORE"
+            ? boardGeometries[ownedGame.template].wraps ? "SCORE" : "FINISH"
             : ownedGame.victoryMode,
           targetScore: ownedGame.targetScore,
           maxRounds: ownedGame.maxRounds,

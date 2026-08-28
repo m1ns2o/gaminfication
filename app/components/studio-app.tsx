@@ -31,12 +31,13 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { GameBoard } from "./game-board";
+import { GameBoard, type BoardMovement } from "./game-board";
 import { ContentEditor } from "./content-editor";
+import { PreviewTileAction, type PreviewArrivalType } from "./preview-tile-action";
 import { RoomPrompt } from "./room-prompt";
 import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
 import { TileEditor } from "./tile-editor";
-import { defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
+import { advanceBoardPosition, boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
 import { useGameRoom } from "../lib/use-game-room";
 
 type View = "dashboard" | "library" | "editor";
@@ -366,7 +367,11 @@ export function StudioApp() {
   const [liveMessage, setLiveMessage] = useState("조선 후기, 변화의 길 초안을 불러왔습니다.");
   const [editorSection, setEditorSection] = useState<EditorSection>("questions");
   const [realtimeBusy, setRealtimeBusy] = useState(false);
+  const [boardAnimating, setBoardAnimating] = useState(false);
+  const [previewArrival, setPreviewArrival] = useState<{ id: number; type: PreviewArrivalType } | null>(null);
+  const [localMovement, setLocalMovement] = useState<BoardMovement | undefined>(undefined);
   const clientIdSequence = useRef(1);
+  const localMovementSequence = useRef(1);
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0];
   const filteredLibrary = useMemo(() => {
@@ -392,6 +397,7 @@ export function StudioApp() {
   const liveTileTypes = realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes;
   const liveRound = realtime.roomState?.round ?? round;
   const liveLastRoll = realtime.roomState?.lastRoll ?? lastRoll;
+  const localCanRoll = boardGeometries[liveGeometry].wraps || tokens.some((token) => token.active && token.position < 23);
   const currentTurnLabel = realtime.roomState?.players.find(
     (player) => player.id === realtime.roomState?.currentPlayerId,
   )?.nickname ?? (realtime.roomState?.status === "FINALIZED" ? "게임 종료" : "김하늘 팀");
@@ -452,6 +458,16 @@ export function StudioApp() {
   }, [joinCode, joinOpen]);
 
   const lastRoomEvent = realtime.roomState?.lastEvent;
+  const boardMovement: BoardMovement | undefined = realtime.roomState
+    ? lastRoomEvent?.from !== undefined ? {
+        key: realtime.roomState.version,
+        actorId: lastRoomEvent.actorId,
+        from: lastRoomEvent.from,
+        rollTo: lastRoomEvent.to,
+        cardDirection: realtime.roomState.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
+      }
+      : undefined
+    : localMovement;
   const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
   const announcedMessage = realtime.error
     ?? (lastRoomEvent?.type === "GAME_FINISHED"
@@ -488,14 +504,21 @@ export function StudioApp() {
   }
 
   function rollDice() {
+    setPreviewArrival(null);
     if (realtime.roomState) {
       realtime.roll();
       return;
     }
     const roll = Math.floor(Math.random() * 6) + 1;
+    const activeToken = tokens.find((token) => token.active);
+    if (!activeToken) return;
+    const destination = advanceBoardPosition(geometry, activeToken.position, roll);
+    const movementKey = localMovementSequence.current;
+    localMovementSequence.current += 1;
+    setLocalMovement({ key: movementKey, actorId: activeToken.id, from: activeToken.position, rollTo: destination });
     setLastRoll(roll);
-    setTokens((current) => current.map((token) => token.active ? { ...token, position: (token.position + roll) % 24 } : token));
-    setRound((current) => current + (roll === 6 ? 1 : 0));
+    setTokens((current) => current.map((token) => token.id === activeToken.id ? { ...token, position: destination } : token));
+    if (boardGeometries[geometry].wraps && activeToken.position + roll >= 24) setRound((current) => current + 1);
     setLiveMessage(`주사위 ${roll}. 김하늘 팀의 말이 ${roll}칸 이동했습니다.`);
   }
 
@@ -674,8 +697,7 @@ export function StudioApp() {
 
             <div className="board-controls" aria-label="보드 설정 미리보기">
               <div className="segmented-control" role="group" aria-label="맵 템플릿">
-                <button type="button" aria-pressed={geometry === "LOOP_24"} onClick={() => setGeometry("LOOP_24")}>순환형</button>
-                <button type="button" aria-pressed={geometry === "RACE_24"} onClick={() => setGeometry("RACE_24")}>직선형</button>
+                {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => { setGeometry(id); setPreviewArrival(null); }}>{boardGeometries[id].shortName}</button>)}
               </div>
               <label className="select-label">
                 <Palette aria-hidden="true" />
@@ -692,13 +714,20 @@ export function StudioApp() {
               tokens={liveTokens}
               round={liveRound}
               lastRoll={liveLastRoll}
-              onRoll={liveGeometry === "LOOP_24" && (!realtime.roomState || realtime.canRoll) ? rollDice : undefined}
+              onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
               currentTurnLabel={currentTurnLabel}
               eventLabel={boardEventLabel}
               tileTypes={liveTileTypes}
+              movement={boardMovement}
+              onAnimationStateChange={setBoardAnimating}
+              onMovementComplete={({ position, tileType }) => {
+                if (realtime.roomState) return;
+                const type: PreviewArrivalType = !boardGeometries[liveGeometry].wraps && position === 23 ? "FINISH" : tileType;
+                setPreviewArrival({ id: localMovementSequence.current, type });
+              }}
             />
 
-            {realtime.roomState && realtime.roomState.status !== "LOBBY" && (
+            {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
               <RoomPrompt
                 key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
                 state={realtime.roomState}
@@ -707,6 +736,19 @@ export function StudioApp() {
                 viewerId={realtime.participantId}
               />
             )}
+
+            {!realtime.roomState && previewArrival && !boardAnimating ? (
+              <PreviewTileAction
+                key={previewArrival.id}
+                gameId={selectedGame.id}
+                type={previewArrival.type}
+                canLoadContent={persistedGameIds.has(selectedGame.id)}
+                questionCount={selectedGame.questions}
+                cardCount={selectedGame.cards}
+                onEdit={(section) => { setEditorSection(section); setView("editor"); setPreviewArrival(null); }}
+                onDismiss={() => setPreviewArrival(null)}
+              />
+            ) : null}
 
             <div className="workbench-actions">
               <div className="content-counts">
@@ -780,7 +822,7 @@ export function StudioApp() {
                     <GameBoard geometryId={game.template} skinId={game.skin} tokens={[]} round={1} lastRoll={1} compact />
                   </div>
                   <div className="library-card__body">
-                    <div className="tag-row"><span>{game.subject}</span><span>{game.grade}</span><span>{game.template === "LOOP_24" ? "순환형" : "직선형"}</span></div>
+                    <div className="tag-row"><span>{game.subject}</span><span>{game.grade}</span><span>{boardGeometries[game.template].shortName}</span></div>
                     <h3>{game.title}</h3>
                     <p>{game.description}</p>
                     <div className="library-card__meta"><span>문제 {game.questions}</span><span>카드 {game.cards}</span><span>한소연 선생님</span></div>
@@ -876,7 +918,7 @@ export function StudioApp() {
         <div className="dialog-heading"><div><span className="dialog-mark"><FilePlus2 /></span><h2 id="create-dialog-title">새 게임 만들기</h2><p>기본 설정은 나중에 모두 바꿀 수 있습니다.</p></div><button className="icon-button" type="button" onClick={() => setCreateOpen(false)} aria-label="닫기"><X /></button></div>
         <form className="create-form" onSubmit={createGame}>
           <label><span>게임 제목</span><input name="title" required placeholder="예: 조선 후기, 변화의 길" /></label>
-          <fieldset><legend>맵 템플릿</legend><label className="radio-card"><input type="radio" name="template" value="LOOP_24" defaultChecked /><span><Grid2X2 /><strong>24칸 순환형</strong><small>중앙 무대가 있는 7×7 보드</small></span></label><label className="radio-card"><input type="radio" name="template" value="RACE_24" /><span><Gamepad2 /><strong>24칸 직선 레이스</strong><small>시작에서 결승까지 가는 S자 경로</small></span></label></fieldset>
+          <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id, index) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} defaultChecked={index === 0} /><span>{id === "LOOP_24" || id === "SPIRAL_24" ? <Grid2X2 /> : <Gamepad2 />}<strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
           <label><span>첫 스킨</span><select name="skin" defaultValue="CAMPUS">{(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}</select></label>
           <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setCreateOpen(false)}>취소</button><button className="button button--primary" type="submit">초안 만들기</button></div>
         </form>

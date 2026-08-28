@@ -1,8 +1,8 @@
 {
-  "date": "2026-08-28",
+  "date": "2026-08-29",
   "framework": "Vinext App Router with React 19 and Tailwind CSS 4",
   "fonts": ["Noto Sans KR", "Bricolage Grotesque", "Geist Mono"],
   "palette": "Hallmark Hum-derived OKLCH education-game palette",
-  "motion": "CSS transform and opacity only; reduced-motion supported",
+  "motion": "Functional dice, token-step, arrival, and horizontal follow motion; reduced-motion supported",
   "spacing": "4pt semantic scale"
 }

@@ -99,17 +99,19 @@ test("applies a server-owned educational card effect", () => {
   assert.equal(state.currentPlayerId, "player-1");
 });
 
-test("finishes a race at tile 24 without wrapping to the start", () => {
-  let state = createRoomState({
-    roomId: "race-room", code: "111111", gameId: "race-game", gameTitle: "완주 게임",
-    template: "RACE_24", skin: "CAMPUS", host: { id: "host-1", nickname: "진행자" }, now: firstTime,
-  });
-  state = startGame(state, "host-1", state.version, firstTime);
-  state = { ...state, players: state.players.map((player) => ({ ...player, position: 20 })) };
-  state = rollDice(state, "host-1", 6, state.version, firstTime);
-  assert.equal(state.players[0].position, 23);
-  assert.equal(state.status, "FINALIZED");
-  assert.deepEqual(state.winnerIds, ["host-1"]);
+test("finishes every non-loop course at tile 24 without wrapping", () => {
+  for (const template of ["RACE_24", "LINE_24", "SPIRAL_24"]) {
+    let state = createRoomState({
+      roomId: `${template}-room`, code: "111111", gameId: `${template}-game`, gameTitle: "완주 게임",
+      template, skin: "CAMPUS", host: { id: "host-1", nickname: "진행자" }, now: firstTime,
+    });
+    state = startGame(state, "host-1", state.version, firstTime);
+    state = { ...state, players: state.players.map((player) => ({ ...player, position: 20 })) };
+    state = rollDice(state, "host-1", 6, state.version, firstTime);
+    assert.equal(state.players[0].position, 23);
+    assert.equal(state.status, "FINALIZED");
+    assert.deepEqual(state.winnerIds, ["host-1"]);
+  }
 });
 
 test("supports score, round, timeout, and host-ended completion", () => {

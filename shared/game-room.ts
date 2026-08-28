@@ -1,4 +1,4 @@
-import type { BoardGeometryId, SkinId } from "../app/lib/board";
+import { advanceBoardPosition, boardGeometries, type BoardGeometryId, type SkinId } from "../app/lib/board.ts";
 
 export const MAX_ROOM_PLAYERS = 40;
 
@@ -200,7 +200,7 @@ export function normalizeRoomState(state: GameRoomState): GameRoomState {
     ...state,
     phase: state.status === "FINALIZED" ? "FINISHED" : (state.phase ?? "WAITING_FOR_ROLL"),
     gameRules: state.gameRules ?? {
-      victoryMode: state.template === "RACE_24" ? "FINISH" : "SCORE",
+      victoryMode: boardGeometries[state.template].wraps ? "SCORE" : "FINISH",
       targetScore: 100,
       maxRounds: 10,
     },
@@ -253,7 +253,7 @@ export function createRoomState(input: CreateRoomInput): GameRoomState {
     status: "LOBBY",
     phase: "WAITING_FOR_ROLL",
     gameRules: input.gameRules ?? {
-      victoryMode: input.template === "RACE_24" ? "FINISH" : "SCORE",
+      victoryMode: boardGeometries[input.template].wraps ? "SCORE" : "FINISH",
       targetScore: 100,
       maxRounds: 10,
     },
@@ -453,7 +453,7 @@ export function rollDice(
   if (!actor) throw new GameRuleError("PLAYER_NOT_FOUND", "참가자를 찾을 수 없습니다.");
 
   const from = actor.position;
-  const to = state.template === "RACE_24" ? Math.min(from + dice, 23) : (from + dice) % 24;
+  const to = advanceBoardPosition(state.template, from, dice);
   const movedPlayers = state.players.map((player) => player.id === actorId ? { ...player, position: to } : player);
   const tileType = state.tileTypes[to];
 
@@ -504,8 +504,8 @@ export function rollDice(
     const keepTurn = card.effectType === "EXTRA_TURN";
     players = players.map((player) => {
       if (player.id !== actorId) return player;
-      if (card.effectType === "MOVE_FORWARD") return { ...player, position: state.template === "RACE_24" ? Math.min(player.position + card.effectValue, 23) : (player.position + card.effectValue) % 24 };
-      if (card.effectType === "MOVE_BACK") return { ...player, position: state.template === "RACE_24" ? Math.max(player.position - card.effectValue, 0) : (player.position - card.effectValue + 24) % 24 };
+      if (card.effectType === "MOVE_FORWARD") return { ...player, position: advanceBoardPosition(state.template, player.position, card.effectValue) };
+      if (card.effectType === "MOVE_BACK") return { ...player, position: advanceBoardPosition(state.template, player.position, -card.effectValue) };
       if (card.effectType === "SCORE_BONUS") return { ...player, score: player.score + card.effectValue };
       if (card.effectType === "SKIP_TURN") return { ...player, skipTurns: player.skipTurns + 1 };
       return player;

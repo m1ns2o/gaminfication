@@ -3,7 +3,7 @@ import { getDb } from "../../../../../db";
 import { games } from "../../../../../db/schema";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../../lib/server-api";
 
-const templates = ["LOOP_24", "RACE_24"] as const;
+const templates = ["LOOP_24", "RACE_24", "LINE_24", "SPIRAL_24"] as const;
 const skins = ["CAMPUS", "SPACE_LAB", "ECO_EXPEDITION"] as const;
 const victoryModes = ["AUTO", "SCORE", "ROUNDS", "FINISH"] as const;
 const tileTypes = ["START", "QUIZ", "BONUS", "EVENT", "REST"] as const;
