@@ -59,13 +59,21 @@ function connect(path) {
   });
 }
 
-const gamesResponse = await requestJson("/api/v1/me/games");
-assert.ok(gamesResponse.games.length > 0, "A seeded game is required");
+const createdGame = await requestJson("/api/v1/me/games", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ title: `실시간 퀴즈 검증 ${Date.now()}`, template: "LOOP_24", skin: "CAMPUS" }),
+});
+await requestJson(`/api/v1/games/${createdGame.game.id}/questions`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ type: "SHORT_ANSWER", prompt: "정조가 설치한 왕실 도서관은?", correctAnswer: "규장각", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 30 }),
+});
 
 const hostSession = await requestJson("/api/v1/rooms", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ gameId: gamesResponse.games[0].id }),
+  body: JSON.stringify({ gameId: createdGame.game.id }),
 });
 const playerSession = await requestJson("/api/v1/rooms/join", {
   method: "POST",
@@ -82,14 +90,24 @@ try {
 
   const started = await host.waitFor((state) => state.status === "PLAYING");
   assert.equal(started.currentPlayerId, hostSession.participant.id);
-  host.socket.send(JSON.stringify({ type: "ROLL_DICE", actionId: crypto.randomUUID(), expectedVersion: started.version }));
-
-  const hostAfterRoll = await host.waitFor((state) => state.lastEvent.type === "DICE_ROLLED");
-  const playerAfterRoll = await player.waitFor((state) => state.version === hostAfterRoll.version);
-  assert.equal(playerAfterRoll.lastRoll, hostAfterRoll.lastRoll);
-  assert.equal(playerAfterRoll.currentPlayerId, playerSession.participant.id);
-  assert.equal(hostAfterRoll.players.find((entry) => entry.id === hostSession.participant.id).position, hostAfterRoll.lastRoll);
-  console.log(`Realtime smoke passed for room ${hostSession.room.code} at version ${hostAfterRoll.version}.`);
+  let state = started;
+  let quizAnswered = false;
+  for (let attempt = 0; attempt < 24 && !quizAnswered; attempt += 1) {
+    const actor = state.currentPlayerId === hostSession.participant.id ? host : player;
+    actor.socket.send(JSON.stringify({ type: "ROLL_DICE", actionId: crypto.randomUUID(), expectedVersion: state.version }));
+    state = await host.waitFor((next) => next.version > state.version);
+    const mirrored = await player.waitFor((next) => next.version === state.version);
+    assert.equal(mirrored.lastRoll, state.lastRoll);
+    if (state.phase !== "WAITING_FOR_ANSWER") continue;
+    assert.equal("correctAnswer" in state.activeQuestion, false, "Active state must not leak the answer");
+    actor.socket.send(JSON.stringify({ type: "ANSWER_QUESTION", actionId: crypto.randomUUID(), answer: "규장각", expectedVersion: state.version }));
+    state = await host.waitFor((next) => next.version > state.version && next.lastEvent.type === "QUESTION_ANSWERED");
+    assert.equal(state.lastAnswer.correct, true);
+    assert.equal(state.lastAnswer.pointsAwarded, 20);
+    quizAnswered = true;
+  }
+  assert.equal(quizAnswered, true, "A quiz tile should be reached during the smoke test");
+  console.log(`Realtime quiz smoke passed for room ${hostSession.room.code} at version ${state.version}.`);
 } finally {
   host.socket.close(1000, "Smoke test complete");
   player.socket.close(1000, "Smoke test complete");

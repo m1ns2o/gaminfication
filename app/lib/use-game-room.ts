@@ -164,9 +164,24 @@ export function useGameRoom() {
     expectedVersion: roomState?.version,
   }), [roomState?.version, send]);
 
+  const answer = useCallback((submittedAnswer: string) => send({
+    type: "ANSWER_QUESTION",
+    actionId: crypto.randomUUID(),
+    answer: submittedAnswer,
+    expectedVersion: roomState?.version,
+  }), [roomState?.version, send]);
+
   const canRoll = useMemo(() => (
     status === "open"
     && roomState?.status === "PLAYING"
+    && roomState.phase === "WAITING_FOR_ROLL"
+    && roomState.currentPlayerId === participantId
+  ), [participantId, roomState, status]);
+
+  const canAnswer = useMemo(() => (
+    status === "open"
+    && roomState?.status === "PLAYING"
+    && roomState.phase === "WAITING_FOR_ANSWER"
     && roomState.currentPlayerId === participantId
   ), [participantId, roomState, status]);
 
@@ -177,10 +192,12 @@ export function useGameRoom() {
     status,
     error,
     canRoll,
+    canAnswer,
     createRoom,
     joinRoom,
     start,
     roll,
+    answer,
     disconnect,
   };
 }

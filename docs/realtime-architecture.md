@@ -23,7 +23,8 @@ GET /ws/rooms/:roomId?ticket=...
 | --- | --- | --- |
 | 게임 정의와 공개 정보 | D1 | 장기 |
 | 방 코드, 만료시간, 참가자 기록 | D1 | 수업 수명 이상 |
-| 현재 턴, 라운드, 말 위치, 마지막 주사위 | GameRoom | 매 명령 DO SQLite 체크포인트 |
+| 현재 턴, 라운드, 말 위치, 점수, 퀴즈·카드 상태 | GameRoom | 매 명령 DO SQLite 체크포인트 |
+| 퀴즈 정답과 카드 정의 | GameRoom 비공개 콘텐츠 | 방 생성 시 D1에서 복사, DO SQLite 보관 |
 | 열린 WebSocket | Cloudflare runtime | Hibernation 유지 |
 | 연결별 participant ID | WebSocket attachment | 연결 수명 |
 | 최근 action ID | GameRoom SQLite | 최근 128개 |
@@ -36,6 +37,7 @@ Client commands:
 { type: "SYNC" }
 { type: "START_GAME", actionId, expectedVersion }
 { type: "ROLL_DICE", actionId, expectedVersion }
+{ type: "ANSWER_QUESTION", actionId, answer, expectedVersion }
 ```
 
 Server messages:
@@ -63,16 +65,17 @@ Server messages:
 - WebSocket URL에는 256-bit 임의 티켓만 포함하며 사용자 ID를 신뢰하지 않습니다.
 - 티켓은 해당 Durable Object 내부에만 저장되고 6시간 후 거부됩니다.
 - 서버가 주사위를 생성하고 현재 차례와 상태 버전을 검증합니다.
+- 출제 중인 `ROOM_STATE`에는 정답을 넣지 않고 Durable Object가 비공개 정답으로 채점합니다.
 - 연결 종료 시 다른 탭 연결이 없는 참가자만 offline으로 표시합니다.
 - 재접속은 같은 티켓으로 지수형 backoff를 사용하며 접속 직후 전체 snapshot을 받습니다.
 
-## Next game rules
+## Educational game rules
 
-다음 기능은 `shared/game-room.ts`의 순수 상태 전이 함수와 WebSocket 명령을 함께 추가합니다.
+구현된 흐름:
 
-1. 땅 구매와 소유권
-2. 통행료와 파산
-3. 문제 출제·정답 제출
-4. 카드와 특수 칸
-5. 제한시간 Alarm
-6. 게임 종료와 D1 결과 저장
+1. 퀴즈 칸에서 객관식·주관식·O/X 문제를 순환 출제
+2. 현재 차례 참가자의 답만 받고 서버에서 정답과 배점을 검증
+3. 보너스·이벤트 칸에서 이동, 점수, 추가 턴, 쉬기 카드 적용
+4. 토지 구매·소유권·통행료는 교육 목표에 맞지 않아 제외
+
+다음 단계는 제한시간 Alarm, 게임 종료 조건, D1 수업 결과 저장입니다.

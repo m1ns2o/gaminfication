@@ -14,7 +14,7 @@ Browser
 ```
 
 - D1은 게임 정의, 참가자와 방 메타데이터처럼 검색·보존할 데이터를 담당합니다.
-- `GameRoom` Durable Object는 진행 중인 방의 턴, 말 위치, 주사위와 연결 상태를 담당합니다.
+- `GameRoom` Durable Object는 진행 중인 방의 턴, 말 위치, 주사위, 퀴즈 채점, 카드 효과와 연결 상태를 담당합니다.
 - 클라이언트는 행동 의도만 보내며 주사위와 이동 결과는 서버가 결정합니다.
 - WebSocket 티켓은 D1이 아닌 방 객체 저장소에 6시간 동안 보관합니다.
 - 게임 시작 시에만 D1 방 상태를 갱신하고, 매 게임 명령은 Durable Object SQLite에 체크포인트합니다.
@@ -57,6 +57,8 @@ npm run dev
 - `app/lib/game-room-server.ts`: App Router API에서 Durable Object를 호출하는 내부 어댑터
 - `app/api/v1/rooms`: 방 생성과 진행자 세션 발급
 - `app/api/v1/rooms/join`: 코드 검증, 참가자 등록과 세션 발급
+- `app/api/v1/games/:id/questions`: 객관식·주관식·O/X 문제 CRUD
+- `app/api/v1/games/:id/cards`: 이동·점수·추가 턴·쉬기 카드 CRUD
 - `worker/index.ts`: `/ws/rooms/:roomId` Upgrade 요청 라우팅
 
-현재 게임 규칙 MVP는 방 생성, 참가, 시작, 서버 주사위, 24칸 이동과 턴 전환을 구현합니다. 땅 구매, 통행료, 카드, 승리 조건은 동일한 서버 권위형 상태 머신에 후속 명령으로 추가하면 됩니다.
+교육용 규칙은 방 생성, 참가, 시작, 서버 주사위, 24칸 이동, 퀴즈 출제·서버 채점, 점수와 카드 효과를 구현합니다. 땅 구매와 통행료는 의도적으로 포함하지 않습니다. 제한시간 자동 처리와 수업 결과 리포트는 후속 범위입니다.

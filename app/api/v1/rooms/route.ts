@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { games, roomParticipants, rooms } from "../../../../db/schema";
+import { cards, games, questions, roomParticipants, rooms } from "../../../../db/schema";
+import { parseOptions } from "../../../lib/game-content";
 import { gameRoomWebSocketPath, initializeGameRoom } from "../../../lib/game-room-server";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../lib/server-api";
 
@@ -28,6 +29,10 @@ export async function POST(request: Request) {
       skin: games.skin,
     }).from(games).where(and(eq(games.id, payload.gameId), eq(games.ownerId, hostId))).limit(1);
     if (!ownedGame) return badRequest("GAME_NOT_FOUND", "게임을 찾을 수 없습니다.");
+    const [gameQuestions, gameCards] = await Promise.all([
+      db.select().from(questions).where(eq(questions.gameId, ownedGame.id)),
+      db.select().from(cards).where(eq(cards.gameId, ownedGame.id)),
+    ]);
     const now = new Date();
     const code = await makeRoomCode();
     const participantId = crypto.randomUUID();
@@ -54,6 +59,23 @@ export async function POST(request: Request) {
         gameTitle: ownedGame.title,
         template: ownedGame.template,
         skin: ownedGame.skin,
+        questions: gameQuestions.map((question) => ({
+          id: question.id,
+          type: question.type,
+          prompt: question.prompt,
+          options: parseOptions(question.optionsJson),
+          correctAnswer: question.correctAnswer,
+          explanation: question.explanation,
+          points: question.points,
+          timeLimitSeconds: question.timeLimitSeconds,
+        })),
+        cards: gameCards.map((card) => ({
+          id: card.id,
+          title: card.title,
+          description: card.description,
+          effectType: card.effectType,
+          effectValue: card.effectValue,
+        })),
         host: { id: participantId, nickname: "진행자" },
         now: now.toISOString(),
       });

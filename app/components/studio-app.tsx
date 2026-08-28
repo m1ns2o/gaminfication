@@ -32,10 +32,13 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { GameBoard } from "./game-board";
+import { ContentEditor } from "./content-editor";
+import { RoomPrompt } from "./room-prompt";
 import { skinNames, type BoardGeometryId, type SkinId } from "../lib/board";
 import { useGameRoom } from "../lib/use-game-room";
 
 type View = "dashboard" | "library" | "editor";
+type EditorSection = "questions" | "cards";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 
 type Game = {
@@ -330,8 +333,7 @@ export function StudioApp() {
   const [search, setSearch] = useState("");
   const [libraryFilter, setLibraryFilter] = useState("전체");
   const [liveMessage, setLiveMessage] = useState("조선 후기, 변화의 길 초안을 불러왔습니다.");
-  const [question, setQuestion] = useState("정조가 설치한 왕실 도서관의 이름은 무엇인가요?");
-  const [answer, setAnswer] = useState("규장각");
+  const [editorSection, setEditorSection] = useState<EditorSection>("questions");
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const clientIdSequence = useRef(1);
 
@@ -361,6 +363,13 @@ export function StudioApp() {
   const currentTurnLabel = realtime.roomState?.players.find(
     (player) => player.id === realtime.roomState?.currentPlayerId,
   )?.nickname ?? "김하늘 팀";
+  const boardEventLabel = realtime.roomState?.activeQuestion
+    ? "퀴즈에 답할 차례"
+    : realtime.roomState?.activeCard
+      ? `카드 · ${realtime.roomState.activeCard.title}`
+      : realtime.roomState?.lastAnswer
+        ? realtime.roomState.lastAnswer.correct ? `정답 · +${realtime.roomState.lastAnswer.pointsAwarded}점` : "정답을 확인해 보세요"
+        : "퀴즈와 카드로 학습하기";
   const formattedRoomCode = realtime.roomCode
     ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}`
     : "--- ---";
@@ -385,7 +394,13 @@ export function StudioApp() {
   const lastRoomEvent = realtime.roomState?.lastEvent;
   const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
   const announcedMessage = realtime.error
-    ?? (lastRoomEvent?.type === "DICE_ROLLED" && lastRoomEvent.dice
+    ?? (lastRoomEvent?.type === "QUESTION_PRESENTED"
+      ? `${roomEventActor?.nickname ?? "참가자"}에게 퀴즈가 출제되었습니다.`
+      : lastRoomEvent?.type === "QUESTION_ANSWERED"
+        ? lastRoomEvent.correct ? `정답입니다. ${lastRoomEvent.pointsAwarded ?? 0}점을 얻었습니다.` : "오답입니다. 정답과 해설을 확인하세요."
+        : lastRoomEvent?.type === "CARD_DRAWN" && realtime.roomState?.activeCard
+          ? `${realtime.roomState.activeCard.title} 카드가 적용되었습니다.`
+          : lastRoomEvent?.type === "DICE_ROLLED" && lastRoomEvent.dice
       ? `주사위 ${lastRoomEvent.dice}. ${roomEventActor?.nickname ?? "참가자"}의 말이 ${lastRoomEvent.dice}칸 이동했습니다.`
       : liveMessage);
 
@@ -394,6 +409,10 @@ export function StudioApp() {
     setGeometry(game.template);
     setSkin(game.skin);
     setLiveMessage(`${game.title} ${statusText(game.status)}을 불러왔습니다.`);
+  }
+
+  function updateContentCounts(questions: number, cards: number) {
+    setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, questions, cards } : game));
   }
 
   function rollDice() {
@@ -603,7 +622,17 @@ export function StudioApp() {
               lastRoll={liveLastRoll}
               onRoll={liveGeometry === "LOOP_24" && (!realtime.roomState || realtime.canRoll) ? rollDice : undefined}
               currentTurnLabel={currentTurnLabel}
+              eventLabel={boardEventLabel}
             />
+
+            {realtime.roomState?.status === "PLAYING" && (
+              <RoomPrompt
+                key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
+                state={realtime.roomState}
+                canAnswer={realtime.canAnswer}
+                onAnswer={realtime.answer}
+              />
+            )}
 
             <div className="workbench-actions">
               <div className="content-counts">
@@ -710,36 +739,21 @@ export function StudioApp() {
                 ["카드 덱", Sparkles], ["테스트 플레이", Play], ["발행", Share2],
               ].map(([label, Icon], index) => {
                 const StepIcon = Icon as typeof Check;
-                return <button key={String(label)} type="button" className={index === 3 ? "is-current" : index < 3 ? "is-complete" : ""}><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
+                const isCurrent = (index === 3 && editorSection === "questions") || (index === 4 && editorSection === "cards");
+                return <button key={String(label)} type="button" className={isCurrent ? "is-current" : index < 3 ? "is-complete" : ""} onClick={() => { if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
               })}
             </aside>
-            <section className="question-editor" aria-labelledby="question-editor-heading">
-              <div className="question-editor__head">
-                <div><h2 id="question-editor-heading">문제은행</h2><p>정답은 참가자 화면과 공개 미리보기에 표시되지 않습니다.</p></div>
-                <button className="button button--outline" type="button"><Plus /> 문제 추가</button>
-              </div>
-              <div className="question-workarea">
-                <aside className="question-list" aria-label="문제 목록">
-                  <button type="button" className="is-selected"><span>01</span><strong>규장각 문제</strong><small>객관식 · 현재 차례</small></button>
-                  <button type="button"><span>02</span><strong>탕평책 O/X</strong><small>O/X · 전원 동시</small></button>
-                  <button type="button"><span>03</span><strong>실학자 연결</strong><small>단답형 · 전원 동시</small></button>
-                </aside>
-                <form className="question-form" onSubmit={(event) => { event.preventDefault(); setLiveMessage("문제 1의 변경 내용을 저장했습니다."); }}>
-                  <div className="form-row form-row--split">
-                    <label><span>문제 유형</span><select defaultValue="SHORT"><option value="MULTIPLE">객관식</option><option value="OX">O/X</option><option value="SHORT">단답형</option><option value="ESSAY">서술형</option></select></label>
-                    <label><span>풀이 방식</span><select defaultValue="TURN"><option value="TURN">현재 차례만</option><option value="ALL">전원 동시</option></select></label>
-                  </div>
-                  <label><span>질문</span><textarea value={question} onChange={(event) => setQuestion(event.target.value)} /></label>
-                  <label><span>정답</span><input value={answer} onChange={(event) => setAnswer(event.target.value)} /></label>
-                  <div className="answer-preview"><CircleHelp aria-hidden="true" /><span><strong>참가자에게는 정답 입력 칸만 표시됩니다.</strong><small>팀전에서는 팀장만 최종 답을 제출합니다.</small></span></div>
-                  <div className="question-form__actions"><button className="button button--quiet" type="button">문제 복제</button><button className="button button--ink" type="submit">변경 저장</button></div>
-                </form>
-              </div>
-            </section>
+            <ContentEditor
+              gameId={selectedGame.id}
+              enabled={persistedGameIds.has(selectedGame.id)}
+              section={editorSection}
+              onMessage={setLiveMessage}
+              onCountsChange={updateContentCounts}
+            />
             <aside className="editor-preview" aria-label="보드 미리보기">
               <div><h2>맵 미리보기</h2><span>{skinNames[skin]}</span></div>
               <GameBoard geometryId={geometry} skinId={skin} tokens={tokens.slice(0, 2)} round={1} lastRoll={3} compact />
-              <p>문제 18개가 퀴즈 칸 12개에 순환 배치됩니다.</p>
+              <p>문제 {selectedGame.questions}개와 카드 {selectedGame.cards}개가 해당 칸에 순환 배치됩니다.</p>
             </aside>
           </div>
         </main>

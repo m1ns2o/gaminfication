@@ -30,6 +30,37 @@ export const games = sqliteTable("games", {
   index("idx_games_library").on(table.visibility, table.status, table.updatedAt),
 ]);
 
+export const questions = sqliteTable("questions", {
+  id: text("id").primaryKey(),
+  gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  type: text("type", { enum: ["MULTIPLE_CHOICE", "SHORT_ANSWER", "OX"] }).notNull(),
+  prompt: text("prompt").notNull(),
+  optionsJson: text("options_json").notNull().default("[]"),
+  correctAnswer: text("correct_answer").notNull(),
+  explanation: text("explanation").notNull().default(""),
+  points: integer("points").notNull().default(10),
+  timeLimitSeconds: integer("time_limit_seconds").notNull().default(30),
+  orderIndex: integer("order_index").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_questions_game_order").on(table.gameId, table.orderIndex),
+]);
+
+export const cards = sqliteTable("cards", {
+  id: text("id").primaryKey(),
+  gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  effectType: text("effect_type", { enum: ["MOVE_FORWARD", "MOVE_BACK", "SCORE_BONUS", "EXTRA_TURN", "SKIP_TURN"] }).notNull(),
+  effectValue: integer("effect_value").notNull().default(0),
+  orderIndex: integer("order_index").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  index("idx_cards_game_order").on(table.gameId, table.orderIndex),
+]);
+
 export const gameVersions = sqliteTable("game_versions", {
   id: text("id").primaryKey(),
   gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),

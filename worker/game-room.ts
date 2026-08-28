@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import {
   GameRuleError,
   addPlayer,
+  answerQuestion,
   createRoomState,
   rollDice,
   setPlayerConnected,
@@ -10,6 +11,7 @@ import {
   type ClientRoomMessage,
   type CreateRoomInput,
   type GameRoomState,
+  type RoomContent,
   type ServerRoomMessage,
 } from "../shared/game-room";
 
@@ -25,6 +27,7 @@ type SocketAttachment = {
 const STATE_KEY = "room-state";
 const SESSION_PREFIX = "session:";
 const ACTIONS_KEY = "recent-actions";
+const CONTENT_KEY = "room-content";
 const SESSION_LIFETIME_MS = 6 * 60 * 60 * 1000;
 const MAX_RECENT_ACTIONS = 128;
 
@@ -40,6 +43,7 @@ function randomTicket() {
 export class GameRoom extends DurableObject<Cloudflare.Env> {
   private state: GameRoomState | null = null;
   private recentActionIds: string[] = [];
+  private content: RoomContent = { questions: [], cards: [] };
   private readonly environment: Cloudflare.Env;
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
@@ -47,9 +51,10 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     this.environment = env;
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.ctx.blockConcurrencyWhile(async () => {
-      const stored = await this.ctx.storage.get([STATE_KEY, ACTIONS_KEY]);
+      const stored = await this.ctx.storage.get([STATE_KEY, ACTIONS_KEY, CONTENT_KEY]);
       this.state = stored.get(STATE_KEY) as GameRoomState | null ?? null;
       this.recentActionIds = stored.get(ACTIONS_KEY) as string[] | undefined ?? [];
+      this.content = stored.get(CONTENT_KEY) as RoomContent | undefined ?? { questions: [], cards: [] };
     });
   }
 
@@ -96,7 +101,11 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
 
   private async initialize(request: Request) {
     const input = await request.json<CreateRoomInput>();
-    if (!this.state) await this.saveState(createRoomState(input));
+    if (!this.state) {
+      this.content = { questions: input.questions ?? [], cards: input.cards ?? [] };
+      await this.ctx.storage.put(CONTENT_KEY, this.content);
+      await this.saveState(createRoomState(input));
+    }
     const state = this.requireState();
     if (state.roomId !== input.roomId || state.gameId !== input.gameId) {
       return json({ error: { code: "ROOM_ID_CONFLICT", message: "다른 게임방이 이미 이 객체를 사용하고 있습니다." } }, 409);
@@ -180,7 +189,9 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
       const next = message.type === "START_GAME"
         ? startGame(current, attachment.participantId, message.expectedVersion)
         : message.type === "ROLL_DICE"
-          ? rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion)
+          ? rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion, new Date().toISOString(), this.content)
+          : message.type === "ANSWER_QUESTION"
+            ? answerQuestion(current, attachment.participantId, message.answer, this.content, message.expectedVersion)
           : null;
 
       if (!next) throw new GameRuleError("UNKNOWN_MESSAGE", "지원하지 않는 게임 명령입니다.");

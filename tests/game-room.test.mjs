@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   GameRuleError,
   addPlayer,
+  answerQuestion,
   createRoomState,
   rollDice,
   setPlayerConnected,
@@ -59,4 +60,37 @@ test("rejects non-host starts, stale commands, and out-of-turn rolls", () => {
     () => rollDice(state, "host-1", 3, state.version - 1, firstTime),
     (error) => error instanceof GameRuleError && error.code === "STALE_STATE",
   );
+});
+
+test("presents a safe quiz, validates the answer, and awards points", () => {
+  let state = addPlayer(createFixture(), { id: "player-1", nickname: "별빛나침반", now: firstTime });
+  state = startGame(state, "host-1", state.version, firstTime);
+  const content = {
+    questions: [{ id: "q1", type: "SHORT_ANSWER", prompt: "왕실 도서관은?", options: [], correctAnswer: "규장각, 奎章閣", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 30 }],
+    cards: [],
+  };
+
+  state = rollDice(state, "host-1", 1, state.version, firstTime, content);
+  assert.equal(state.phase, "WAITING_FOR_ANSWER");
+  assert.equal(state.currentPlayerId, "host-1");
+  assert.equal("correctAnswer" in state.activeQuestion, false);
+
+  state = answerQuestion(state, "host-1", " 규장각 ", content, state.version, firstTime);
+  assert.equal(state.lastAnswer.correct, true);
+  assert.equal(state.players[0].score, 20);
+  assert.equal(state.currentPlayerId, "player-1");
+});
+
+test("applies a server-owned educational card effect", () => {
+  let state = addPlayer(createFixture(), { id: "player-1", nickname: "별빛나침반", now: firstTime });
+  state = startGame(state, "host-1", state.version, firstTime);
+  const content = {
+    questions: [],
+    cards: [{ id: "c1", title: "탐구 점수", description: "좋은 질문 보너스", effectType: "SCORE_BONUS", effectValue: 5 }],
+  };
+
+  state = rollDice(state, "host-1", 2, state.version, firstTime, content);
+  assert.equal(state.activeCard.title, "탐구 점수");
+  assert.equal(state.players[0].score, 5);
+  assert.equal(state.currentPlayerId, "player-1");
 });
