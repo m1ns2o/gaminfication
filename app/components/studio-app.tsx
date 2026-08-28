@@ -33,6 +33,7 @@ import {
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { GameBoard } from "./game-board";
 import { skinNames, type BoardGeometryId, type SkinId } from "../lib/board";
+import { useGameRoom } from "../lib/use-game-room";
 
 type View = "dashboard" | "library" | "editor";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
@@ -51,6 +52,38 @@ type Game = {
   questions: number;
   cards: number;
 };
+
+type ApiGame = {
+  id: string;
+  title: string;
+  description: string;
+  subject: string;
+  grade: string;
+  template: BoardGeometryId;
+  skin: SkinId;
+  status: GameStatus;
+  visibility: "PRIVATE" | "UNLISTED" | "PUBLIC";
+  updatedAt: string;
+  questionsCount: number;
+  cardsCount: number;
+};
+
+function fromApiGame(game: ApiGame): Game {
+  return {
+    id: game.id,
+    title: game.title,
+    description: game.description,
+    subject: game.subject,
+    grade: game.grade,
+    template: game.template,
+    skin: game.skin,
+    status: game.status,
+    visibility: game.visibility,
+    updated: new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(game.updatedAt)),
+    questions: game.questionsCount,
+    cards: game.cardsCount,
+  };
+}
 
 const initialGames: Game[] = [
   {
@@ -280,8 +313,10 @@ function HeaderNav({
 }
 
 export function StudioApp() {
+  const realtime = useGameRoom();
   const [view, setView] = useState<View>("dashboard");
   const [games, setGames] = useState(initialGames);
+  const [persistedGameIds, setPersistedGameIds] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState(initialGames[0].id);
   const [geometry, setGeometry] = useState<BoardGeometryId>(initialGames[0].template);
   const [skin, setSkin] = useState<SkinId>(initialGames[0].skin);
@@ -297,6 +332,7 @@ export function StudioApp() {
   const [liveMessage, setLiveMessage] = useState("조선 후기, 변화의 길 초안을 불러왔습니다.");
   const [question, setQuestion] = useState("정조가 설치한 왕실 도서관의 이름은 무엇인가요?");
   const [answer, setAnswer] = useState("규장각");
+  const [realtimeBusy, setRealtimeBusy] = useState(false);
   const clientIdSequence = useRef(1);
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0];
@@ -309,6 +345,50 @@ export function StudioApp() {
     });
   }, [search, libraryFilter]);
 
+  const liveTokens = realtime.roomState
+    ? realtime.roomState.players.map((player) => ({
+        id: player.id,
+        label: player.nickname,
+        position: player.position,
+        symbol: player.symbol,
+        active: player.id === realtime.roomState?.currentPlayerId,
+      }))
+    : tokens;
+  const liveGeometry = realtime.roomState?.template ?? geometry;
+  const liveSkin = realtime.roomState?.skin ?? skin;
+  const liveRound = realtime.roomState?.round ?? round;
+  const liveLastRoll = realtime.roomState?.lastRoll ?? lastRoll;
+  const currentTurnLabel = realtime.roomState?.players.find(
+    (player) => player.id === realtime.roomState?.currentPlayerId,
+  )?.nickname ?? "김하늘 팀";
+  const formattedRoomCode = realtime.roomCode
+    ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}`
+    : "--- ---";
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/v1/me/games")
+      .then(async (response) => {
+        const payload = await response.json() as { games?: ApiGame[] };
+        if (!response.ok || !payload.games?.length || cancelled) return;
+        const serverGames = payload.games.map(fromApiGame);
+        setGames(serverGames);
+        setPersistedGameIds(new Set(serverGames.map((game) => game.id)));
+        setSelectedId(serverGames[0].id);
+        setGeometry(serverGames[0].template);
+        setSkin(serverGames[0].skin);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const lastRoomEvent = realtime.roomState?.lastEvent;
+  const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
+  const announcedMessage = realtime.error
+    ?? (lastRoomEvent?.type === "DICE_ROLLED" && lastRoomEvent.dice
+      ? `주사위 ${lastRoomEvent.dice}. ${roomEventActor?.nickname ?? "참가자"}의 말이 ${lastRoomEvent.dice}칸 이동했습니다.`
+      : liveMessage);
+
   function selectGame(game: Game) {
     setSelectedId(game.id);
     setGeometry(game.template);
@@ -317,6 +397,10 @@ export function StudioApp() {
   }
 
   function rollDice() {
+    if (realtime.roomState) {
+      realtime.roll();
+      return;
+    }
     const roll = Math.floor(Math.random() * 6) + 1;
     setLastRoll(roll);
     setTokens((current) => current.map((token) => token.active ? { ...token, position: (token.position + roll) % 24 } : token));
@@ -324,7 +408,30 @@ export function StudioApp() {
     setLiveMessage(`주사위 ${roll}. 김하늘 팀의 말이 ${roll}칸 이동했습니다.`);
   }
 
-  function createGame(event: FormEvent<HTMLFormElement>) {
+  async function saveGame(game: Game) {
+    if (persistedGameIds.has(game.id)) return game;
+    const response = await fetch("/api/v1/me/games", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: game.title,
+        description: game.description,
+        subject: game.subject,
+        grade: game.grade,
+        template: game.template,
+        skin: game.skin,
+      }),
+    });
+    const payload = await response.json() as { game?: ApiGame; error?: { message?: string } };
+    if (!response.ok || !payload.game) throw new Error(payload.error?.message ?? "게임을 저장하지 못했습니다.");
+    const saved = fromApiGame(payload.game);
+    setGames((current) => current.map((candidate) => candidate.id === game.id ? saved : candidate));
+    setPersistedGameIds((current) => new Set(current).add(saved.id));
+    setSelectedId(saved.id);
+    return saved;
+  }
+
+  async function createGame(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "새 수업 게임").trim() || "새 수업 게임";
@@ -346,11 +453,16 @@ export function StudioApp() {
       questions: 0,
       cards: 0,
     };
-    setGames((current) => [game, ...current]);
-    selectGame(game);
-    setCreateOpen(false);
-    setView("editor");
-    setLiveMessage(`${title} 비공개 초안을 만들었습니다.`);
+    try {
+      const saved = await saveGame(game);
+      setGames((current) => current.some((candidate) => candidate.id === saved.id) ? current : [saved, ...current]);
+      selectGame(saved);
+      setCreateOpen(false);
+      setView("editor");
+      setLiveMessage(`${title} 비공개 초안을 만들었습니다.`);
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "게임을 만들지 못했습니다.");
+    }
   }
 
   function cloneGame(game: Game) {
@@ -371,9 +483,42 @@ export function StudioApp() {
   }
 
   function copyRoomCode() {
-    navigator.clipboard?.writeText("482731").catch(() => undefined);
+    if (!realtime.roomCode) return;
+    navigator.clipboard?.writeText(realtime.roomCode).catch(() => undefined);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2500);
+  }
+
+  async function prepareRoom() {
+    if (realtimeBusy) return;
+    setRealtimeBusy(true);
+    try {
+      const game = await saveGame(selectedGame);
+      const session = await realtime.createRoom(game.id);
+      setRoomOpen(true);
+      setLiveMessage(`참가 코드 ${session.room.code} 방을 만들었습니다.`);
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "수업 방을 만들지 못했습니다.");
+    } finally {
+      setRealtimeBusy(false);
+    }
+  }
+
+  async function joinRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (realtimeBusy) return;
+    const form = new FormData(event.currentTarget);
+    setRealtimeBusy(true);
+    try {
+      const session = await realtime.joinRoom(String(form.get("code") ?? ""), String(form.get("nickname") ?? ""));
+      setJoinOpen(false);
+      setView("dashboard");
+      setLiveMessage(`${session.participant.nickname} 닉네임으로 방에 참가했습니다.`);
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "게임방에 참가하지 못했습니다.");
+    } finally {
+      setRealtimeBusy(false);
+    }
   }
 
   return (
@@ -385,7 +530,7 @@ export function StudioApp() {
         onJoin={() => setJoinOpen(true)}
       />
 
-      <div className="live-region sr-only" aria-live="polite">{liveMessage}</div>
+      <div className="live-region sr-only" aria-live="polite">{announcedMessage}</div>
 
       {view === "dashboard" && (
         <main className="dashboard-shell">
@@ -451,12 +596,13 @@ export function StudioApp() {
             </div>
 
             <GameBoard
-              geometryId={geometry}
-              skinId={skin}
-              tokens={tokens}
-              round={round}
-              lastRoll={lastRoll}
-              onRoll={geometry === "LOOP_24" ? rollDice : undefined}
+              geometryId={liveGeometry}
+              skinId={liveSkin}
+              tokens={liveTokens}
+              round={liveRound}
+              lastRoll={liveLastRoll}
+              onRoll={liveGeometry === "LOOP_24" && (!realtime.roomState || realtime.canRoll) ? rollDice : undefined}
+              currentTurnLabel={currentTurnLabel}
             />
 
             <div className="workbench-actions">
@@ -467,7 +613,7 @@ export function StudioApp() {
               </div>
               <div className="workbench-actions__buttons">
                 <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
-                <button className="button button--primary" type="button" onClick={() => setRoomOpen(true)}><Play aria-hidden="true" /> 방 만들기</button>
+                <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : "방 만들기"}</button>
               </div>
             </div>
           </section>
@@ -490,7 +636,7 @@ export function StudioApp() {
               <li className="is-current"><Play aria-hidden="true" /><span><strong>게임 진행</strong><small>3라운드 · 18분</small></span></li>
               <li><BarChart3 aria-hidden="true" /><span><strong>결과 정리</strong><small>종료 후 자동 요약</small></span></li>
             </ol>
-            <button className="button button--ink" type="button" onClick={() => setRoomOpen(true)}>진행 화면 열기</button>
+            <button className="button button--ink" type="button" onClick={() => realtime.roomCode ? setRoomOpen(true) : void prepareRoom()}>{realtime.roomCode ? "진행 화면 열기" : "수업 방 만들기"}</button>
             <p className="panel-note">서술형 채점 대기 2건 · 재접속 0명</p>
           </aside>
         </main>
@@ -554,7 +700,7 @@ export function StudioApp() {
             <div className="editor-header__actions">
               <span className="save-state"><Check aria-hidden="true" /> 저장됨</span>
               <button className="button button--quiet" type="button"><Eye /> 테스트</button>
-              <button className="button button--primary" type="button" onClick={() => { setRoomOpen(true); setLiveMessage("테스트 방을 준비했습니다."); }}><Send /> 발행 준비</button>
+              <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Send /> {realtimeBusy ? "준비 중" : "발행 준비"}</button>
             </div>
           </header>
           <div className="editor-layout">
@@ -618,21 +764,21 @@ export function StudioApp() {
       </DialogShell>
 
       <DialogShell open={roomOpen} onClose={() => setRoomOpen(false)} labelledBy="room-dialog-title" className="room-dialog">
-        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--teal"><Play /></span><h2 id="room-dialog-title">수업 방이 준비됐어요</h2><p>{selectedGame.title}</p></div><button className="icon-button" type="button" onClick={() => setRoomOpen(false)} aria-label="닫기"><X /></button></div>
+        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--teal"><Play /></span><h2 id="room-dialog-title">수업 방이 준비됐어요</h2><p>{realtime.roomState?.gameTitle ?? selectedGame.title}</p></div><button className="icon-button" type="button" onClick={() => setRoomOpen(false)} aria-label="닫기"><X /></button></div>
         <div className="room-code-layout">
           <div className="qr-mark" aria-label="방 참가 QR 코드 미리보기">{Array.from({ length: 121 }, (_, index) => <i key={index} className={(index * 7 + Math.floor(index / 11) * 3) % 5 < 2 ? "is-dark" : ""} />)}</div>
-          <div className="room-code-copy"><span>참가 코드</span><strong>482 731</strong><button className="button button--outline copy-button" data-state={copied ? "copied" : undefined} type="button" onClick={copyRoomCode}>{copied ? <Check /> : <Copy />}{copied ? "복사됨" : "코드 복사"}</button></div>
+          <div className="room-code-copy"><span>참가 코드</span><strong>{formattedRoomCode}</strong><button className="button button--outline copy-button" data-state={copied ? "copied" : undefined} type="button" onClick={copyRoomCode} disabled={!realtime.roomCode}>{copied ? <Check /> : <Copy />}{copied ? "복사됨" : "코드 복사"}</button></div>
         </div>
-        <div className="room-settings"><span><Users /> 개인전 · 최대 40명</span><span><Eye /> 발표 화면 준비됨</span></div>
-        <div className="dialog-actions"><button className="button button--quiet" type="button">발표 화면 미리보기</button><button className="button button--ink" type="button" onClick={() => { setRoomOpen(false); setLiveMessage("진행자 콘솔을 열었습니다."); }}>진행 시작</button></div>
+        <div className="room-settings"><span><Users /> {realtime.roomState?.players.length ?? 1}명 접속 · 최대 40명</span><span><Eye /> {realtime.status === "open" ? "실시간 연결됨" : realtime.status === "reconnecting" ? "재연결 중" : "연결 준비 중"}</span></div>
+        <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setRoomOpen(false)}>보드 보기</button><button className="button button--ink" type="button" disabled={realtime.status !== "open" || realtime.roomState?.status !== "LOBBY"} onClick={() => { realtime.start(); setRoomOpen(false); setLiveMessage("실시간 게임을 시작했습니다."); }}>진행 시작</button></div>
       </DialogShell>
 
       <DialogShell open={joinOpen} onClose={() => setJoinOpen(false)} labelledBy="join-dialog-title" className="join-dialog">
         <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--amber"><Users /></span><h2 id="join-dialog-title">수업 게임 참가</h2><p>선생님 화면에 나온 코드와 사용할 닉네임을 입력하세요.</p></div><button className="icon-button" type="button" onClick={() => setJoinOpen(false)} aria-label="닫기"><X /></button></div>
-        <form className="join-form" onSubmit={(event) => { event.preventDefault(); setJoinOpen(false); setLiveMessage("별빛나침반 닉네임으로 방에 참가했습니다."); }}>
-          <label><span>6자리 참가 코드</span><input className="code-input" inputMode="numeric" name="code" pattern="[0-9]{6}" maxLength={6} defaultValue="482731" required aria-describedby="code-help" /><small id="code-help">숫자만 6자리 입력하세요.</small></label>
-          <label><span>닉네임</span><input name="nickname" maxLength={12} defaultValue="별빛나침반" required /></label>
-          <button className="button button--primary button--full" type="submit">게임에 참가하기</button>
+        <form className="join-form" onSubmit={joinRoom}>
+          <label><span>6자리 참가 코드</span><input className="code-input" inputMode="numeric" name="code" pattern="[0-9]{6}" maxLength={6} placeholder="482731" required aria-describedby="code-help" /><small id="code-help">숫자만 6자리 입력하세요.</small></label>
+          <label><span>닉네임</span><input name="nickname" minLength={2} maxLength={12} placeholder="별빛나침반" required /></label>
+          <button className="button button--primary button--full" type="submit" disabled={realtimeBusy}>{realtimeBusy ? "연결 중" : "게임에 참가하기"}</button>
         </form>
         <p className="privacy-note"><LockKeyhole /> 계정 없이 참가하며, 닉네임은 이 수업이 끝나면 삭제됩니다.</p>
       </DialogShell>

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { games, rooms } from "../../../../db/schema";
+import { games, roomParticipants, rooms } from "../../../../db/schema";
+import { gameRoomWebSocketPath, initializeGameRoom } from "../../../lib/game-room-server";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../lib/server-api";
 
 async function makeRoomCode() {
@@ -20,16 +21,55 @@ export async function POST(request: Request) {
     const payload = await request.json() as { gameId?: string };
     if (!payload.gameId) return badRequest("GAME_ID_REQUIRED", "방을 만들 게임을 선택하세요.");
     const db = getDb();
-    const ownedGame = await db.select({ id: games.id }).from(games).where(and(eq(games.id, payload.gameId), eq(games.ownerId, hostId))).limit(1);
-    if (ownedGame.length === 0) return badRequest("GAME_NOT_FOUND", "게임을 찾을 수 없습니다.");
+    const [ownedGame] = await db.select({
+      id: games.id,
+      title: games.title,
+      template: games.template,
+      skin: games.skin,
+    }).from(games).where(and(eq(games.id, payload.gameId), eq(games.ownerId, hostId))).limit(1);
+    if (!ownedGame) return badRequest("GAME_NOT_FOUND", "게임을 찾을 수 없습니다.");
     const now = new Date();
     const code = await makeRoomCode();
+    const participantId = crypto.randomUUID();
     const [room] = await db.insert(rooms).values({
       id: crypto.randomUUID(), gameId: payload.gameId, hostId, code, status: "LOBBY",
       stateJson: JSON.stringify({ round: 1, turn: 0, positions: {}, scores: {} }),
       createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString(),
     }).returning();
-    return Response.json({ room: { id: room.id, code: room.code, status: room.status } }, { status: 201 });
+    await db.insert(roomParticipants).values({
+      id: participantId,
+      roomId: room.id,
+      authUserId: `host:${hostId}`,
+      nickname: "진행자",
+      isTeamLeader: true,
+      joinedAt: now.toISOString(),
+      lastSeenAt: now.toISOString(),
+    });
+    let registration;
+    try {
+      registration = await initializeGameRoom({
+        roomId: room.id,
+        code: room.code,
+        gameId: ownedGame.id,
+        gameTitle: ownedGame.title,
+        template: ownedGame.template,
+        skin: ownedGame.skin,
+        host: { id: participantId, nickname: "진행자" },
+        now: now.toISOString(),
+      });
+    } catch (error) {
+      await db.delete(roomParticipants).where(eq(roomParticipants.id, participantId));
+      await db.delete(rooms).where(eq(rooms.id, room.id));
+      throw error;
+    }
+    return Response.json({
+      room: { id: room.id, code: room.code, status: room.status },
+      participant: { id: participantId, nickname: "진행자", role: "HOST" },
+      realtime: {
+        ticket: registration.ticket,
+        websocketPath: gameRoomWebSocketPath(room.id, registration.ticket),
+      },
+    }, { status: 201 });
   } catch (error) {
     return routeError(error);
   }

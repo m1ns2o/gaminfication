@@ -30,6 +30,7 @@ type GameBoardProps = {
   lastRoll: number;
   onRoll?: () => void;
   compact?: boolean;
+  currentTurnLabel?: string;
 };
 
 const tileIcons = {
@@ -92,6 +93,7 @@ export function GameBoard({
   lastRoll,
   onRoll,
   compact = false,
+  currentTurnLabel = "김하늘 팀",
 }: GameBoardProps) {
   const geometry = boardGeometries[geometryId];
   const isLoop = geometryId === "LOOP_24";
@@ -119,7 +121,7 @@ export function GameBoard({
           <div className="landmark landmark--right" aria-hidden="true" />
           <div className="board-stage__copy">
             <span className="mono-label">ROUND {round}</span>
-            <strong>김하늘 팀 차례</strong>
+            <strong>{currentTurnLabel} 차례</strong>
             <span>직전 이벤트 · 보너스 카드 +2점</span>
           </div>
           <button
