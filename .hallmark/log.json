@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-08-29",
+    "macrostructure": "Split Auth",
+    "theme": "Hum",
+    "enrichment": "none",
+    "brief": "Teacher account login and registration paired with an in-board dice control"
+  },
+  {
     "date": "2026-08-28",
     "macrostructure": "Workbench",
     "theme": "Hum",

@@ -15,7 +15,7 @@ function boundedInteger(value: unknown, fallback: number, minimum: number, maxim
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id } = await params;
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id } = await params;

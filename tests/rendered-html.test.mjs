@@ -10,23 +10,29 @@ test("build emits the vinext worker artifacts", async () => {
     access(new URL("dist/client", root)),
     access(new URL("dist/.openai/hosting.json", root)),
     access(new URL("dist/.openai/drizzle/0000_whole_havok.sql", root)),
+    access(new URL("dist/.openai/drizzle/0005_nebulous_talon.sql", root)),
   ]);
 });
 
 test("Classloop page and worker expose the realtime room surface", async () => {
-  const [page, layout, studio, worker, wrangler] = await Promise.all([
+  const [page, layout, studio, auth, login, worker, wrangler] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
     readFile(new URL("app/components/studio-app.tsx", root), "utf8"),
+    readFile(new URL("app/lib/teacher-auth.ts", root), "utf8"),
+    readFile(new URL("app/login/page.tsx", root), "utf8"),
     readFile(new URL("worker/index.ts", root), "utf8"),
     readFile(new URL("wrangler.jsonc", root), "utf8"),
   ]);
 
-  assert.match(page, /getChatGPTUser\(\)/);
+  assert.match(page, /getTeacherFromCookie/);
   assert.match(page, /<StudioApp\s+auth=/);
   assert.match(layout, /Classloop/);
   assert.match(studio, /useGameRoom\(\)/);
   assert.match(studio, /prepareRoom/);
+  assert.match(auth, /PBKDF2/);
+  assert.match(auth, /HttpOnly; SameSite=Lax/);
+  assert.match(login, /TeacherAuthForm/);
   assert.match(worker, /roomSocketMatch/);
   assert.match(worker, /export \{ GameRoom \}/);
   assert.match(wrangler, /"GAME_ROOMS"/);

@@ -10,7 +10,7 @@ function toQuestion(row: typeof questions.$inferSelect) {
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string; questionId: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id, questionId } = await params;
@@ -35,7 +35,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string; questionId: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id, questionId } = await params;

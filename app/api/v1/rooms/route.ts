@@ -28,7 +28,7 @@ function roomTileTypes(value: string) {
 }
 
 export async function POST(request: Request) {
-  const hostId = getCreatorId(request);
+  const hostId = await getCreatorId(request);
   if (!hostId) return unauthorized();
   try {
     const payload = await request.json() as { gameId?: string };

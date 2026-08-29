@@ -5,7 +5,7 @@ import { parseCardInput } from "../../../../../../lib/game-content";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../../../../lib/server-api";
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string; cardId: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id, cardId } = await params;
@@ -29,7 +29,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string; cardId: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id, cardId } = await params;

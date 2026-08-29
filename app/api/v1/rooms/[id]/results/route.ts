@@ -4,7 +4,7 @@ import { roomQuestionResponses, roomResults, rooms } from "../../../../../../db/
 import { getCreatorId, routeError, unauthorized } from "../../../../../lib/server-api";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const hostId = getCreatorId(request);
+  const hostId = await getCreatorId(request);
   if (!hostId) return unauthorized();
   try {
     const { id } = await params;

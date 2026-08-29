@@ -1,8 +1,8 @@
-export function getCreatorId(request: Request) {
+import { getTeacherFromCookie } from "./teacher-auth";
+
+export async function getCreatorId(request: Request) {
   if (request.headers.get("x-classloop-anonymous") === "true") return null;
-  return request.headers.get("x-supabase-user-id")
-    ?? request.headers.get("oai-authenticated-user-id")
-    ?? "local-demo-teacher";
+  return (await getTeacherFromCookie(request.headers.get("cookie")))?.userId ?? null;
 }
 
 export function unauthorized() {

@@ -63,7 +63,7 @@
   --dur-short: 220ms;
   --dur-long: 420ms;
   --dur-step: 360ms;
-  --dur-dice: 1900ms;
+  --dur-dice: 2800ms;
 
   --size-dice: clamp(5.5rem, 14vw, 8.5rem);
 

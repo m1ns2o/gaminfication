@@ -9,6 +9,28 @@ export const profiles = sqliteTable("profiles", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const teacherAccounts = sqliteTable("teacher_accounts", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  displayName: text("display_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_teacher_accounts_email").on(table.email),
+]);
+
+export const teacherSessions = sqliteTable("teacher_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  teacherId: text("teacher_id").notNull().references(() => teacherAccounts.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+}, (table) => [
+  index("idx_teacher_sessions_teacher").on(table.teacherId),
+  index("idx_teacher_sessions_expiry").on(table.expiresAt),
+]);
+
 export const games = sqliteTable("games", {
   id: text("id").primaryKey(),
   ownerId: text("owner_id").notNull(),

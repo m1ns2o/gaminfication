@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { chatGPTSignInPath, chatGPTSignOutPath, getChatGPTUser } from "./chatgpt-auth";
+import { headers } from "next/headers";
 import { StudioApp } from "./components/studio-app";
+import { getTeacherFromCookie } from "./lib/teacher-auth";
 
 export const metadata: Metadata = {
   title: "나의 수업 게임",
@@ -8,6 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const user = await getChatGPTUser();
-  return <StudioApp auth={{ user, signInPath: chatGPTSignInPath("/"), signOutPath: chatGPTSignOutPath("/") }} />;
+  const requestHeaders = await headers();
+  const teacher = await getTeacherFromCookie(requestHeaders.get("cookie")).catch(() => null);
+  const user = teacher ? { displayName: teacher.displayName, email: teacher.email } : null;
+  return <StudioApp auth={{ user, signInPath: "/login?returnTo=%2F", signOutPath: "/api/v1/auth/logout" }} />;
 }

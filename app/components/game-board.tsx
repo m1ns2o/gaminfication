@@ -152,7 +152,7 @@ export function GameBoard({
     animationStateRef.current = onAnimationStateChange;
   }, [onAnimationStateChange, onMovementComplete, tileTypes, tokens]);
 
-  function beginDiceRoll(duration = 1900) {
+  function beginDiceRoll(duration = 2800) {
     if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current);
     rollEndAtRef.current = Date.now() + duration;
     setRollCycle((current) => current + 1);
@@ -170,7 +170,7 @@ export function GameBoard({
     if (!onRoll || rolling || movingTokenId) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     animationStateRef.current?.(true);
-    beginDiceRoll(reducedMotion ? 120 : 1900);
+    beginDiceRoll(reducedMotion ? 120 : 2800);
     navigator.vibrate?.(18);
     onRoll();
   }
@@ -221,7 +221,7 @@ export function GameBoard({
         setDisplayedPositions(next);
         if (geometryId === "LINE_24") followLineTile(scrollRef.current, changedToken.position, "auto");
       } else {
-        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(1900);
+        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(2800);
         await wait(Math.max(0, rollEndAtRef.current - Date.now()));
         if (generation !== motionGenerationRef.current) return;
         setRolling(false);
@@ -308,6 +308,14 @@ export function GameBoard({
         </div>
       ) : null}
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
+      {!compact ? (
+        <div className="board-roll-control">
+          <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
+            <Dices aria-hidden="true" />
+            <span>{rolling ? "굴리는 중" : movingTokenId ? "이동 중" : "주사위 굴리기"}</span>
+          </button>
+        </div>
+      ) : null}
       {rolling && !compact ? (
         <div className="dice-roll-overlay" role="status" aria-label="주사위를 굴리는 중">
           <PhysicsDie value={lastRoll} rollKey={rollCycle} />
@@ -326,10 +334,6 @@ export function GameBoard({
       {!compact ? (
         <div className="board-console" data-state={rolling ? "rolling" : movingTokenId ? "moving" : landedType ? "arrived" : "idle"}>
           <div className="board-console__status"><span className="mono-label">ROUND {round}</span><strong>{rolling ? "주사위를 굴리는 중" : movingTokenId ? `${currentStep !== null ? currentStep + 1 : ""}번 칸으로 이동 중` : `${currentTurnLabel} 차례`}</strong><span>{landedType ? `${tileTypeLabels[landedType]} 칸 도착 · ${tileArrivalCopy[landedType]}` : eventLabel}</span></div>
-          <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
-            <Dices aria-hidden="true" />
-            <span>{rolling ? "굴리는 중" : movingTokenId ? "이동 중" : "주사위 굴리기"}</span>
-          </button>
         </div>
       ) : null}
       <span className="sr-only" aria-live="polite">{announcement}</span>

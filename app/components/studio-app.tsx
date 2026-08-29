@@ -326,11 +326,14 @@ function HeaderNav({
           새 게임
         </button>
         {auth.user ? (
-          <a className="profile-button" href={auth.signOutPath} title={`${auth.user.displayName} · 로그아웃`}>
-            <span className="profile-button__avatar" aria-hidden="true">{auth.user.displayName.trim().charAt(0) || "교"}</span>
-            <span className="profile-button__name">{auth.user.displayName}</span>
-            <LogOut aria-hidden="true" />
-          </a>
+          <form action={auth.signOutPath} method="post">
+            <input type="hidden" name="returnTo" value="/" />
+            <button className="profile-button" type="submit" title={`${auth.user.displayName} · 로그아웃`}>
+              <span className="profile-button__avatar" aria-hidden="true">{auth.user.displayName.trim().charAt(0) || "교"}</span>
+              <span className="profile-button__name">{auth.user.displayName}</span>
+              <LogOut aria-hidden="true" />
+            </button>
+          </form>
         ) : (
           <a className="auth-button" href={auth.signInPath}><LogIn aria-hidden="true" /> 교사용 로그인</a>
         )}
@@ -351,7 +354,9 @@ function HeaderNav({
           <button type="button" onClick={() => { onView("library"); setMobileOpen(false); }}>공유마당</button>
           <button type="button" onClick={() => { onJoin(); setMobileOpen(false); }}>코드로 참가</button>
           <button type="button" onClick={() => { onCreate(); setMobileOpen(false); }}>새 게임</button>
-          <a href={auth.user ? auth.signOutPath : auth.signInPath}>{auth.user ? "로그아웃" : "교사용 로그인"}</a>
+          {auth.user ? (
+            <form action={auth.signOutPath} method="post"><input type="hidden" name="returnTo" value="/" /><button type="submit">로그아웃</button></form>
+          ) : <a href={auth.signInPath}>교사용 로그인</a>}
         </nav>
       )}
     </header>
@@ -503,6 +508,14 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     setLiveMessage(`${game.title} ${statusText(game.status)}을 불러왔습니다.`);
   }
 
+  function openCreate() {
+    if (!auth.user) {
+      window.location.assign(auth.signInPath);
+      return;
+    }
+    setCreateOpen(true);
+  }
+
   function updateContentCounts(questions: number, cards: number) {
     setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, questions, cards } : game));
   }
@@ -594,6 +607,10 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   }
 
   function cloneGame(game: Game) {
+    if (!auth.user) {
+      window.location.assign(auth.signInPath);
+      return;
+    }
     const clientId = clientIdSequence.current;
     clientIdSequence.current += 1;
     const clone = {
@@ -619,6 +636,10 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
   async function prepareRoom() {
     if (realtimeBusy) return;
+    if (!auth.user) {
+      window.location.assign(auth.signInPath);
+      return;
+    }
     setRealtimeBusy(true);
     try {
       const game = await saveGame(selectedGame);
@@ -654,7 +675,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
       <HeaderNav
         view={view}
         onView={setView}
-        onCreate={() => setCreateOpen(true)}
+        onCreate={openCreate}
         onJoin={() => { setJoinCode(""); setJoinRoomInfo(null); setJoinLookupStatus("idle"); setJoinOpen(true); }}
         auth={auth}
       />
@@ -673,7 +694,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <button className="button button--outline" type="button" onClick={() => setJoinOpen(true)}>
                 <Users aria-hidden="true" /> 코드 참가
               </button>
-              <button className="button button--primary" type="button" onClick={() => setCreateOpen(true)}>
+              <button className="button button--primary" type="button" onClick={openCreate}>
                 <FilePlus2 aria-hidden="true" /> 새 게임 만들기
               </button>
             </div>
@@ -685,7 +706,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 <h2 id="my-games-heading">내 게임</h2>
                 <span>{games.length}개</span>
               </div>
-              <button className="icon-button" type="button" onClick={() => setCreateOpen(true)} aria-label="새 게임 만들기"><Plus /></button>
+              <button className="icon-button" type="button" onClick={openCreate} aria-label="새 게임 만들기"><Plus /></button>
             </div>
             <div className="game-list">
               {games.map((game) => (
@@ -817,7 +838,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <h1>선생님들의 수업 게임</h1>
               <p>과목과 학년에 맞는 게임을 찾아 미리 보고, 내 수업용 비공개 초안으로 복제하세요.</p>
             </div>
-            <button className="button button--primary" type="button" onClick={() => setCreateOpen(true)}><Plus /> 처음부터 만들기</button>
+            <button className="button button--primary" type="button" onClick={openCreate}><Plus /> 처음부터 만들기</button>
           </header>
           <section className="library-tools" aria-label="공유마당 검색과 필터">
             <label className="search-field">

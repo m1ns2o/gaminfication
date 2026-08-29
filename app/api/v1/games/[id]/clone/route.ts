@@ -4,7 +4,7 @@ import { cards, games, questions } from "../../../../../../db/schema";
 import { getCreatorId, routeError, unauthorized } from "../../../../../lib/server-api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ownerId = getCreatorId(request);
+  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id } = await params;
