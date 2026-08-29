@@ -23,7 +23,7 @@ const landingRotation: Record<number, string> = {
 function Face({ value, side }: { value: number; side: string }) {
   const visible = new Set(pips[value]);
   return (
-    <span className={`physics-die__face physics-die__face--${side}`} aria-hidden="true">
+    <span className={`physics-die__face physics-die__face--${side} physics-die__face--value-${value}`} aria-hidden="true">
       {Array.from({ length: 9 }, (_, index) => (
         <i key={index} className={visible.has(index + 1) ? "is-visible" : ""} />
       ))}
@@ -41,6 +41,9 @@ export function PhysicsDie({ value, rollKey }: { value: number; rollKey: number 
     <div className="physics-die-stage" aria-hidden="true">
       <span className="physics-die-stage__floor" />
       <span className="physics-die-stage__shadow" />
+      <span className="physics-die-stage__burst">
+        {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
+      </span>
       <span key={rollKey} className="physics-die" style={style}>
         <Face value={1} side="front" />
         <Face value={2} side="top" />

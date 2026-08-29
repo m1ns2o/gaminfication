@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Coffee, Dices, Flag, Gift, Sparkles, Zap } from "lucide-react";
+import { BookOpen, Coffee, Dices, Flag, Gift, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   boardGeometries,
@@ -47,6 +47,8 @@ type GameBoardProps = {
 };
 
 const tileIcons = { START: Flag, QUIZ: BookOpen, BONUS: Gift, EVENT: Zap, REST: Coffee };
+const DICE_ROLL_DURATION = 2600;
+const TOKEN_STEP_DURATION = 420;
 const tileArrivalCopy: Record<TileType, string> = {
   START: "출발점에 도착했습니다",
   QUIZ: "퀴즈가 열립니다",
@@ -74,7 +76,8 @@ function TokenMark({ token, moving = false }: { token: Token; moving?: boolean }
       title={token.label}
       aria-label={`${token.label}${token.active ? ", 현재 차례" : ""}`}
     >
-      {glyph}
+      <span className="token__figure" aria-hidden="true"><i /><i /></span>
+      <span className="token__initial" aria-hidden="true">{glyph}</span>
     </span>
   );
 }
@@ -152,7 +155,7 @@ export function GameBoard({
     animationStateRef.current = onAnimationStateChange;
   }, [onAnimationStateChange, onMovementComplete, tileTypes, tokens]);
 
-  function beginDiceRoll(duration = 2800) {
+  function beginDiceRoll(duration = DICE_ROLL_DURATION) {
     if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current);
     rollEndAtRef.current = Date.now() + duration;
     setRollCycle((current) => current + 1);
@@ -170,7 +173,7 @@ export function GameBoard({
     if (!onRoll || rolling || movingTokenId) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     animationStateRef.current?.(true);
-    beginDiceRoll(reducedMotion ? 120 : 2800);
+    beginDiceRoll(reducedMotion ? 120 : DICE_ROLL_DURATION);
     navigator.vibrate?.(18);
     onRoll();
   }
@@ -221,7 +224,7 @@ export function GameBoard({
         setDisplayedPositions(next);
         if (geometryId === "LINE_24") followLineTile(scrollRef.current, changedToken.position, "auto");
       } else {
-        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(2800);
+        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(DICE_ROLL_DURATION);
         await wait(Math.max(0, rollEndAtRef.current - Date.now()));
         if (generation !== motionGenerationRef.current) return;
         setRolling(false);
@@ -251,15 +254,15 @@ export function GameBoard({
             movingElement.style.top = `${endPoint.y}px`;
             const deltaX = startPoint.x - endPoint.x;
             const deltaY = startPoint.y - endPoint.y;
-            const hopHeight = Math.max(18, Math.min(34, Math.hypot(deltaX, deltaY) * 0.28));
+            const hopHeight = Math.max(22, Math.min(42, Math.hypot(deltaX, deltaY) * 0.34));
             const animation = movingElement.animate([
               { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) translate(-50%, -68%) scale(1)` },
-              { transform: `translate3d(${deltaX * 0.5}px, ${deltaY * 0.5 - hopHeight}px, 0) translate(-50%, -68%) scale(1.12)`, offset: 0.52 },
+              { transform: `translate3d(${deltaX * 0.5}px, ${deltaY * 0.5 - hopHeight}px, 0) translate(-50%, -68%) rotate(-5deg) scale(1.16)`, offset: 0.48 },
               { transform: "translate3d(0, 0, 0) translate(-50%, -68%) scale(1)" },
-            ], { duration: 360, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" });
+            ], { duration: TOKEN_STEP_DURATION, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" });
             await animation.finished.catch(() => undefined);
           } else {
-            await wait(360);
+            await wait(TOKEN_STEP_DURATION);
           }
           visualPosition = position;
         }
@@ -301,10 +304,14 @@ export function GameBoard({
       })}
       {geometryId === "LOOP_24" ? (
         <div className="board-stage">
-          <div className="landmark landmark--left" aria-hidden="true" />
-          <div className="landmark landmark--right" aria-hidden="true" />
+          <div className="toy-town" aria-hidden="true">
+            <span className="toy-town__road" />
+            <span className="toy-town__school"><i /><i /><i /></span>
+            <span className="toy-town__lab"><i /><i /></span>
+            <span className="toy-town__tree toy-town__tree--left" />
+            <span className="toy-town__tree toy-town__tree--right" />
+          </div>
           <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
-          <Sparkles className="stage-spark" aria-hidden="true" />
         </div>
       ) : null}
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}

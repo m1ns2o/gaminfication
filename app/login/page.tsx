@@ -30,8 +30,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="auth-panel" aria-labelledby="teacher-login-title">
         <div className="auth-panel__intro">
           <Gamepad2 aria-hidden="true" />
-          <h1 id="teacher-login-title">수업을 만든 선생님으로 돌아오세요</h1>
-          <p>게임을 만들고, 실시간 방을 열고, 수업 결과를 같은 계정에서 관리합니다.</p>
+          <h1 id="teacher-login-title">선생님의 게임 테이블로 돌아오세요</h1>
+          <p>퀴즈 맵을 만들고, 실시간 방을 열고, 수업 결과를 한곳에서 관리합니다.</p>
           <ul>
             <li><ShieldCheck aria-hidden="true" /> 비밀번호는 단방향 해시로 저장됩니다.</li>
             <li><ShieldCheck aria-hidden="true" /> 로그인 세션은 14일 후 자동 만료됩니다.</li>

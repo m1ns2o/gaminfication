@@ -686,9 +686,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         <main className="dashboard-shell">
           <section className="workspace-intro reveal" style={{ "--i": 0 } as React.CSSProperties}>
             <div>
-              <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 수업` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
-              <h1>수업 게임 작업대</h1>
-              <p>초안을 이어서 만들거나, 준비된 게임으로 바로 방을 여세요.</p>
+              <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 게임 테이블` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
+              <h1>오늘의 게임 스테이지</h1>
+              <p>보드를 고르고 수업 방을 열면, 학생 기기의 말이 같은 판 위에서 움직입니다.</p>
             </div>
             <div className="workspace-intro__actions">
               <button className="button button--outline" type="button" onClick={() => setJoinOpen(true)}>
@@ -794,8 +794,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
             <div className="workbench-actions">
               <div className="content-counts">
-                <span><CircleHelp aria-hidden="true" /> 문제 {selectedGame.questions}</span>
-                <span><Sparkles aria-hidden="true" /> 카드 {selectedGame.cards}</span>
+                <span><CircleHelp aria-hidden="true" /> 퀴즈 {selectedGame.questions}</span>
+                <span><Sparkles aria-hidden="true" /> 이벤트 카드 {selectedGame.cards}</span>
                 <span><Clock3 aria-hidden="true" /> 최근 수정 {selectedGame.updated}</span>
               </div>
               <div className="workbench-actions__buttons">

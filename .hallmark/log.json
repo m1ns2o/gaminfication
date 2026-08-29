@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-29",
+    "scope": "app",
+    "macrostructure": "Game Stage + Toy Workbench + Split Auth",
+    "theme": "Classroom Adventure Table",
+    "enrichment": "Tier A DOM/CSS board town, resin pawns, and stylized 3D die",
+    "brief": "Game-first commercial redesign inspired by casual toy-diorama board games without copying protected game assets"
+  },
+  {
+    "date": "2026-08-29",
     "macrostructure": "Split Auth",
     "theme": "Hum",
     "enrichment": "none",
