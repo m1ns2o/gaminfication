@@ -47,8 +47,13 @@ type GameBoardProps = {
 };
 
 const tileIcons = { START: Flag, QUIZ: BookOpen, BONUS: Gift, EVENT: Zap, REST: Coffee };
-const DICE_ROLL_DURATION = 2600;
-const TOKEN_STEP_DURATION = 420;
+const DICE_MOTION_DURATION = 2600;
+const DICE_RESULT_HOLD_DURATION = 1300;
+const DICE_ROLL_DURATION = DICE_MOTION_DURATION + DICE_RESULT_HOLD_DURATION;
+const REDUCED_DICE_MOTION_DURATION = 1200;
+const REDUCED_DICE_RESULT_HOLD_DURATION = 1300;
+const TOKEN_STEP_DURATION = 600;
+const REDUCED_TOKEN_STEP_DURATION = 360;
 const tileArrivalCopy: Record<TileType, string> = {
   START: "출발점에 도착했습니다",
   QUIZ: "퀴즈가 열립니다",
@@ -129,6 +134,7 @@ export function GameBoard({
   const geometry = boardGeometries[geometryId];
   const [displayedPositions, setDisplayedPositions] = useState<Record<string, number>>(() => Object.fromEntries(tokens.map((token) => [token.id, token.position])));
   const [rolling, setRolling] = useState(false);
+  const [rollPhase, setRollPhase] = useState<"rolling" | "result">("rolling");
   const [rollCycle, setRollCycle] = useState(0);
   const [movingTokenId, setMovingTokenId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number | null>(null);
@@ -137,6 +143,7 @@ export function GameBoard({
   const positionsRef = useRef(displayedPositions);
   const rollEndAtRef = useRef(0);
   const rollTimerRef = useRef<number | null>(null);
+  const rollResultTimerRef = useRef<number | null>(null);
   const motionGenerationRef = useRef(0);
   const motionInFlightRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -155,13 +162,22 @@ export function GameBoard({
     animationStateRef.current = onAnimationStateChange;
   }, [onAnimationStateChange, onMovementComplete, tileTypes, tokens]);
 
-  function beginDiceRoll(duration = DICE_ROLL_DURATION) {
+  function beginDiceRoll(reducedMotion = false) {
     if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current);
+    if (rollResultTimerRef.current !== null) window.clearTimeout(rollResultTimerRef.current);
+    const motionDuration = reducedMotion ? REDUCED_DICE_MOTION_DURATION : DICE_MOTION_DURATION;
+    const duration = reducedMotion ? REDUCED_DICE_MOTION_DURATION + REDUCED_DICE_RESULT_HOLD_DURATION : DICE_ROLL_DURATION;
     rollEndAtRef.current = Date.now() + duration;
     setRollCycle((current) => current + 1);
     setRolling(true);
+    setRollPhase("rolling");
     setLandedIndex(null);
     setAnnouncement("주사위를 굴리고 있습니다.");
+    rollResultTimerRef.current = window.setTimeout(() => {
+      setRollPhase("result");
+      setAnnouncement("주사위 결과가 나왔습니다.");
+      rollResultTimerRef.current = null;
+    }, motionDuration);
     rollTimerRef.current = window.setTimeout(() => {
       setRolling(false);
       rollTimerRef.current = null;
@@ -173,13 +189,14 @@ export function GameBoard({
     if (!onRoll || rolling || movingTokenId) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     animationStateRef.current?.(true);
-    beginDiceRoll(reducedMotion ? 120 : DICE_ROLL_DURATION);
+    beginDiceRoll(reducedMotion);
     navigator.vibrate?.(18);
     onRoll();
   }
 
   useEffect(() => () => {
     if (rollTimerRef.current !== null) window.clearTimeout(rollTimerRef.current);
+    if (rollResultTimerRef.current !== null) window.clearTimeout(rollResultTimerRef.current);
     motionGenerationRef.current += 1;
   }, []);
 
@@ -218,24 +235,37 @@ export function GameBoard({
       animationStateRef.current?.(true);
       setMovingTokenId(changedToken.id);
       setLandedIndex(null);
+      if (rollEndAtRef.current <= Date.now()) beginDiceRoll(reducedMotion);
+      await wait(Math.max(0, rollEndAtRef.current - Date.now()));
+      if (generation !== motionGenerationRef.current) return;
+      setRolling(false);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const movingElement = movingTokenRef.current;
+      const boardElement = boardRef.current;
+      const tilePoint = (position: number) => {
+        const tile = boardElement?.querySelector<HTMLElement>(`[data-tile-index="${position}"]`);
+        if (!tile) return null;
+        return { x: tile.offsetLeft + tile.offsetWidth / 2, y: tile.offsetTop + tile.offsetHeight / 2 };
+      };
       if (reducedMotion) {
-        const next = { ...positionsRef.current, [changedToken.id]: changedToken.position };
-        positionsRef.current = next;
-        setDisplayedPositions(next);
-        if (geometryId === "LINE_24") followLineTile(scrollRef.current, changedToken.position, "auto");
+        const initialPoint = tilePoint(from);
+        if (movingElement && initialPoint) {
+          movingElement.style.left = `${initialPoint.x}px`;
+          movingElement.style.top = `${initialPoint.y}px`;
+          movingElement.classList.add("is-ready");
+        }
+        for (const position of path) {
+          if (generation !== motionGenerationRef.current) return;
+          const point = tilePoint(position);
+          setCurrentStep(position);
+          if (geometryId === "LINE_24") followLineTile(scrollRef.current, position, "auto");
+          if (movingElement && point) {
+            movingElement.style.left = `${point.x}px`;
+            movingElement.style.top = `${point.y}px`;
+          }
+          await wait(REDUCED_TOKEN_STEP_DURATION);
+        }
       } else {
-        if (rollEndAtRef.current <= Date.now()) beginDiceRoll(DICE_ROLL_DURATION);
-        await wait(Math.max(0, rollEndAtRef.current - Date.now()));
-        if (generation !== motionGenerationRef.current) return;
-        setRolling(false);
-        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-        const movingElement = movingTokenRef.current;
-        const boardElement = boardRef.current;
-        const tilePoint = (position: number) => {
-          const tile = boardElement?.querySelector<HTMLElement>(`[data-tile-index="${position}"]`);
-          if (!tile) return null;
-          return { x: tile.offsetLeft + tile.offsetWidth / 2, y: tile.offsetTop + tile.offsetHeight / 2 };
-        };
         let visualPosition = from;
         const initialPoint = tilePoint(visualPosition);
         if (movingElement && initialPoint) {
@@ -266,10 +296,10 @@ export function GameBoard({
           }
           visualPosition = position;
         }
-        const next = { ...positionsRef.current, [changedToken.id]: changedToken.position };
-        positionsRef.current = next;
-        setDisplayedPositions(next);
       }
+      const next = { ...positionsRef.current, [changedToken.id]: changedToken.position };
+      positionsRef.current = next;
+      setDisplayedPositions(next);
       if (generation !== motionGenerationRef.current) return;
       setCurrentStep(null);
       setMovingTokenId(null);
@@ -324,9 +354,9 @@ export function GameBoard({
         </div>
       ) : null}
       {rolling && !compact ? (
-        <div className="dice-roll-overlay" role="status" aria-label="주사위를 굴리는 중">
+        <div className="dice-roll-overlay" role="status" aria-label={rollPhase === "result" ? `주사위 결과 ${lastRoll}` : "주사위를 굴리는 중"} data-phase={rollPhase}>
           <PhysicsDie value={lastRoll} rollKey={rollCycle} />
-          <strong>주사위가 굴러갑니다</strong>
+          <strong>{rollPhase === "result" ? <>주사위 결과 <b>{lastRoll}</b></> : "주사위가 굴러갑니다"}</strong>
         </div>
       ) : null}
     </div>

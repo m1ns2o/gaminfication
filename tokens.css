@@ -73,8 +73,9 @@
   --dur-micro: 120ms;
   --dur-short: 200ms;
   --dur-long: 420ms;
-  --dur-step: 420ms;
-  --dur-dice: 2600ms;
+  --dur-step: 600ms;
+  --dur-dice: 3900ms;
+  --dur-dice-reduced: 1200ms;
 
   --size-dice: clamp(6.75rem, 18vw, 10.5rem);
 

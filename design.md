@@ -106,7 +106,8 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
     "micro": { "$value": "120ms", "$type": "duration" },
     "short": { "$value": "200ms", "$type": "duration" },
     "long": { "$value": "420ms", "$type": "duration" },
-    "dice": { "$value": "2600ms", "$type": "duration" }
+    "dice": { "$value": "3900ms", "$type": "duration" },
+    "dice-reduced": { "$value": "1200ms", "$type": "duration" }
   }
 }
 ```

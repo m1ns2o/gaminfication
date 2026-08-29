@@ -3646,11 +3646,36 @@
 }
 
 .dice-roll-overlay > strong {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   border: 2px solid var(--color-rule-strong);
   background: var(--color-surface);
   color: var(--color-indigo-deep);
   box-shadow: var(--shadow-contact);
   font-size: clamp(var(--text-sm), 2vw, var(--text-md));
+}
+
+.dice-roll-overlay > strong b {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-coral);
+  color: var(--color-accent-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.dice-roll-overlay[data-phase="result"] > strong {
+  background: var(--color-amber);
+}
+
+.dice-roll-overlay[data-phase="result"] .physics-die-stage__burst {
+  opacity: 0;
 }
 
 .physics-die-stage {
@@ -3753,27 +3778,34 @@
 
 @keyframes physics-die-roll {
   0% { transform: translate3d(-95%, -120%, 0) rotateX(18deg) rotateY(-30deg) rotateZ(var(--die-tilt)); }
-  16% { transform: translate3d(-52%, -86%, 3rem) rotateX(150deg) rotateY(125deg) rotateZ(48deg); }
-  34% { transform: translate3d(4%, -112%, 6rem) rotateX(335deg) rotateY(310deg) rotateZ(108deg); }
-  51% { transform: translate3d(34%, -26%, 0) rotateX(470deg) rotateY(445deg) rotateZ(162deg) scale(1.04, 0.94); }
-  63% { transform: translate3d(14%, -72%, 3rem) rotateX(565deg) rotateY(555deg) rotateZ(218deg); }
-  76% { transform: translate3d(3%, -8%, 0) rotateX(630deg) rotateY(640deg) rotateZ(260deg) scale(1.05, 0.93); }
-  82% { transform: translate3d(0, -15%, 0) var(--die-final); }
-  88% { transform: translate3d(0, -7%, 0) var(--die-final) scale(1.02, 0.98); }
-  94%, 100% { transform: translate3d(0, -10%, 0) var(--die-final); }
+  12% { transform: translate3d(-52%, -86%, 3rem) rotateX(150deg) rotateY(125deg) rotateZ(48deg); }
+  27% { transform: translate3d(4%, -112%, 6rem) rotateX(335deg) rotateY(310deg) rotateZ(108deg); }
+  40% { transform: translate3d(34%, -26%, 0) rotateX(470deg) rotateY(445deg) rotateZ(162deg) scale(1.04, 0.94); }
+  52% { transform: translate3d(14%, -72%, 3rem) rotateX(565deg) rotateY(555deg) rotateZ(218deg); }
+  61% { transform: translate3d(3%, -8%, 0) rotateX(630deg) rotateY(640deg) rotateZ(260deg) scale(1.05, 0.93); }
+  67% { transform: translate3d(0, -15%, 0) var(--die-final); }
+  74% { transform: translate3d(0, -7%, 0) var(--die-final) scale(1.02, 0.98); }
+  80%, 100% { transform: translate3d(0, -10%, 0) var(--die-final); }
 }
 
 @keyframes die-shadow {
-  0%, 34% { opacity: 0.18; transform: scale(0.46); }
-  51% { opacity: 0.72; transform: scale(1.12, 0.72); }
-  63% { opacity: 0.24; transform: scale(0.62); }
-  76% { opacity: 0.76; transform: scale(1.08, 0.76); }
-  82%, 100% { opacity: 0.6; transform: scale(0.94, 0.7); }
+  0%, 27% { opacity: 0.18; transform: scale(0.46); }
+  40% { opacity: 0.72; transform: scale(1.12, 0.72); }
+  52% { opacity: 0.24; transform: scale(0.62); }
+  61% { opacity: 0.76; transform: scale(1.08, 0.76); }
+  67%, 100% { opacity: 0.6; transform: scale(0.94, 0.7); }
 }
 
 @keyframes die-impact-burst {
-  0%, 47%, 55%, 72%, 80%, 100% { opacity: 0; transform: scale(0.45); }
-  51%, 76% { opacity: 1; transform: scale(1); }
+  0%, 37%, 44%, 58%, 64%, 100% { opacity: 0; transform: scale(0.45); }
+  40%, 61% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes reduced-die-roll {
+  0% { transform: translate3d(-24%, -36%, 0) rotateX(0deg) rotateY(-35deg) rotateZ(var(--die-tilt)); }
+  48% { transform: translate3d(12%, -48%, 2rem) rotateX(95deg) rotateY(120deg) rotateZ(24deg); }
+  82% { transform: translate3d(2%, -14%, 0) var(--die-final) scale(1.03, 0.97); }
+  100% { transform: translate3d(0, -10%, 0) var(--die-final); }
 }
 
 @keyframes tile-arrival {
@@ -3965,8 +3997,10 @@
   }
 
   .physics-die {
-    animation: none;
-    transform: translate3d(0, -10%, 0) var(--die-final);
+    animation-name: reduced-die-roll !important;
+    animation-duration: var(--dur-dice-reduced) !important;
+    animation-timing-function: var(--ease-out) !important;
+    animation-fill-mode: both !important;
   }
 
   .physics-die-stage__shadow {
