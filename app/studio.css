@@ -1265,6 +1265,7 @@
 .physics-die-orbit,
 .physics-die {
   position: relative;
+  display: block;
   width: var(--size-dice);
   height: var(--size-dice);
   transform-style: preserve-3d;
