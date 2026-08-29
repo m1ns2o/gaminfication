@@ -44,13 +44,15 @@ export function PhysicsDie({ value, rollKey }: { value: number; rollKey: number 
       <span className="physics-die-stage__burst">
         {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
       </span>
-      <span key={rollKey} className="physics-die" style={style}>
-        <Face value={1} side="front" />
-        <Face value={2} side="top" />
-        <Face value={3} side="left" />
-        <Face value={4} side="right" />
-        <Face value={5} side="bottom" />
-        <Face value={6} side="back" />
+      <span key={rollKey} className="physics-die-orbit" style={style}>
+        <span className="physics-die">
+          <Face value={1} side="front" />
+          <Face value={2} side="top" />
+          <Face value={3} side="left" />
+          <Face value={4} side="right" />
+          <Face value={5} side="bottom" />
+          <Face value={6} side="back" />
+        </span>
       </span>
     </div>
   );

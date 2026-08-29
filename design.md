@@ -22,8 +22,8 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
 ## Turn choreography
 
 1. The active turn label and roll button become the strongest board elements.
-2. The die travels in a broad, readable arc with two cartoon impacts.
-3. The final face settles by 80% of the animation and remains readable for roughly 500ms.
+2. The die spins rapidly through multiple full rotations while travelling in a broad, readable arc with two cartoon impacts.
+3. The final face settles by 82% of the 3.2-second motion and remains readable for another 1.3 seconds.
 4. The pawn hops one tile at a time; the next tile lifts before contact.
 5. The arrival tile lifts and receives a non-colour outline.
 6. Quiz and card content takes over the board centre as a stage overlay.
@@ -106,8 +106,8 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
     "micro": { "$value": "120ms", "$type": "duration" },
     "short": { "$value": "200ms", "$type": "duration" },
     "long": { "$value": "420ms", "$type": "duration" },
-    "dice": { "$value": "3900ms", "$type": "duration" },
-    "dice-reduced": { "$value": "1200ms", "$type": "duration" }
+    "dice": { "$value": "3200ms", "$type": "duration" },
+    "dice-reduced": { "$value": "2000ms", "$type": "duration" }
   }
 }
 ```

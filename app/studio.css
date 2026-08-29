@@ -1262,12 +1262,20 @@
   animation: die-shadow var(--dur-dice) var(--ease-out) both;
 }
 
+.physics-die-orbit,
 .physics-die {
   position: relative;
   width: var(--size-dice);
   height: var(--size-dice);
   transform-style: preserve-3d;
-  animation: physics-die-roll var(--dur-dice) var(--ease-out) both;
+}
+
+.physics-die-orbit {
+  animation: physics-die-orbit var(--dur-dice) var(--ease-out) both;
+}
+
+.physics-die {
+  animation: physics-die-spin var(--dur-dice) linear both;
 }
 
 .physics-die__face {
@@ -1351,17 +1359,6 @@
 @keyframes dice-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes physics-die-roll {
-  0% { transform: translate3d(-70%, -105%, 0) rotateX(15deg) rotateY(-25deg) rotateZ(var(--die-tilt)); }
-  18% { transform: translate3d(-34%, -68%, 3rem) rotateX(170deg) rotateY(130deg) rotateZ(50deg); }
-  42% { transform: translate3d(8%, -96%, 5rem) rotateX(390deg) rotateY(340deg) rotateZ(120deg); }
-  65% { transform: translate3d(31%, -34%, 1rem) rotateX(560deg) rotateY(510deg) rotateZ(190deg); }
-  77% { transform: translate3d(17%, -58%, 2rem) rotateX(650deg) rotateY(610deg) rotateZ(240deg); }
-  90% { transform: translate3d(4%, -12%, 0) rotateX(720deg) rotateY(720deg) rotateZ(270deg); }
-  96% { transform: translate3d(1%, -19%, 0) var(--die-final); }
-  100% { transform: translate3d(0, -10%, 0) var(--die-final); }
 }
 
 @keyframes die-shadow {
@@ -3776,36 +3773,54 @@
   opacity: 0.82;
 }
 
-@keyframes physics-die-roll {
-  0% { transform: translate3d(-95%, -120%, 0) rotateX(18deg) rotateY(-30deg) rotateZ(var(--die-tilt)); }
-  12% { transform: translate3d(-52%, -86%, 3rem) rotateX(150deg) rotateY(125deg) rotateZ(48deg); }
-  27% { transform: translate3d(4%, -112%, 6rem) rotateX(335deg) rotateY(310deg) rotateZ(108deg); }
-  40% { transform: translate3d(34%, -26%, 0) rotateX(470deg) rotateY(445deg) rotateZ(162deg) scale(1.04, 0.94); }
-  52% { transform: translate3d(14%, -72%, 3rem) rotateX(565deg) rotateY(555deg) rotateZ(218deg); }
-  61% { transform: translate3d(3%, -8%, 0) rotateX(630deg) rotateY(640deg) rotateZ(260deg) scale(1.05, 0.93); }
-  67% { transform: translate3d(0, -15%, 0) var(--die-final); }
-  74% { transform: translate3d(0, -7%, 0) var(--die-final) scale(1.02, 0.98); }
-  80%, 100% { transform: translate3d(0, -10%, 0) var(--die-final); }
+@keyframes physics-die-orbit {
+  0% { transform: translate3d(-95%, -120%, 0) rotateZ(var(--die-tilt)); }
+  12% { transform: translate3d(-52%, -86%, 3rem) rotateZ(8deg); }
+  27% { transform: translate3d(4%, -112%, 6rem) rotateZ(-7deg); }
+  40% { transform: translate3d(34%, -26%, 0) rotateZ(5deg) scale(1.04, 0.94); }
+  52% { transform: translate3d(14%, -72%, 3rem) rotateZ(-4deg); }
+  63% { transform: translate3d(3%, -8%, 0) rotateZ(2deg) scale(1.05, 0.93); }
+  73% { transform: translate3d(0, -15%, 0); }
+  78% { transform: translate3d(0, -7%, 0) scale(1.02, 0.98); }
+  82%, 100% { transform: translate3d(0, -10%, 0); }
+}
+
+@keyframes physics-die-spin {
+  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  14% { transform: rotateX(540deg) rotateY(450deg) rotateZ(135deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  28% { transform: rotateX(1080deg) rotateY(900deg) rotateZ(270deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  42% { transform: rotateX(1530deg) rotateY(1350deg) rotateZ(405deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  56% { transform: rotateX(2070deg) rotateY(1800deg) rotateZ(540deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  70% { transform: rotateX(2520deg) rotateY(2160deg) rotateZ(630deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  82%, 100% { transform: rotateX(2880deg) rotateY(2520deg) rotateZ(720deg) var(--die-final); }
 }
 
 @keyframes die-shadow {
   0%, 27% { opacity: 0.18; transform: scale(0.46); }
   40% { opacity: 0.72; transform: scale(1.12, 0.72); }
   52% { opacity: 0.24; transform: scale(0.62); }
-  61% { opacity: 0.76; transform: scale(1.08, 0.76); }
-  67%, 100% { opacity: 0.6; transform: scale(0.94, 0.7); }
+  63% { opacity: 0.76; transform: scale(1.08, 0.76); }
+  73%, 100% { opacity: 0.6; transform: scale(0.94, 0.7); }
 }
 
 @keyframes die-impact-burst {
-  0%, 37%, 44%, 58%, 64%, 100% { opacity: 0; transform: scale(0.45); }
-  40%, 61% { opacity: 1; transform: scale(1); }
+  0%, 37%, 44%, 60%, 67%, 100% { opacity: 0; transform: scale(0.45); }
+  40%, 63% { opacity: 1; transform: scale(1); }
 }
 
-@keyframes reduced-die-roll {
-  0% { transform: translate3d(-24%, -36%, 0) rotateX(0deg) rotateY(-35deg) rotateZ(var(--die-tilt)); }
-  48% { transform: translate3d(12%, -48%, 2rem) rotateX(95deg) rotateY(120deg) rotateZ(24deg); }
-  82% { transform: translate3d(2%, -14%, 0) var(--die-final) scale(1.03, 0.97); }
-  100% { transform: translate3d(0, -10%, 0) var(--die-final); }
+@keyframes reduced-die-orbit {
+  0% { transform: translate3d(-28%, -38%, 0) rotateZ(var(--die-tilt)); }
+  45% { transform: translate3d(14%, -52%, 2rem) rotateZ(-5deg); }
+  75% { transform: translate3d(2%, -14%, 0) rotateZ(2deg) scale(1.03, 0.97); }
+  88%, 100% { transform: translate3d(0, -10%, 0); }
+}
+
+@keyframes reduced-die-spin {
+  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  25% { transform: rotateX(540deg) rotateY(450deg) rotateZ(90deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  50% { transform: rotateX(1080deg) rotateY(900deg) rotateZ(180deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  75% { transform: rotateX(1530deg) rotateY(1260deg) rotateZ(270deg) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  88%, 100% { transform: rotateX(1800deg) rotateY(1440deg) rotateZ(360deg) var(--die-final); }
 }
 
 @keyframes tile-arrival {
@@ -3996,10 +4011,17 @@
     display: none;
   }
 
-  .physics-die {
-    animation-name: reduced-die-roll !important;
+  .physics-die-orbit {
+    animation-name: reduced-die-orbit !important;
     animation-duration: var(--dur-dice-reduced) !important;
     animation-timing-function: var(--ease-out) !important;
+    animation-fill-mode: both !important;
+  }
+
+  .physics-die {
+    animation-name: reduced-die-spin !important;
+    animation-duration: var(--dur-dice-reduced) !important;
+    animation-timing-function: linear !important;
     animation-fill-mode: both !important;
   }
 
