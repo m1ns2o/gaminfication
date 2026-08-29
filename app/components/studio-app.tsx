@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   BarChart3,
+  Box,
   BookOpen,
   Check,
   CircleHelp,
@@ -32,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { GameBoard, type BoardMovement } from "./game-board";
+import { GameBoard, type BoardMovement, type BoardViewMode } from "./game-board";
 import { ContentEditor } from "./content-editor";
 import { PreviewTileAction, type PreviewArrivalType } from "./preview-tile-action";
 import { RoomPrompt } from "./room-prompt";
@@ -371,6 +372,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [selectedId, setSelectedId] = useState(initialGames[0].id);
   const [geometry, setGeometry] = useState<BoardGeometryId>(initialGames[0].template);
   const [skin, setSkin] = useState<SkinId>(initialGames[0].skin);
+  const [boardView, setBoardView] = useState<BoardViewMode>("2D");
   const [tokens, setTokens] = useState(sampleTokens);
   const [lastRoll, setLastRoll] = useState(4);
   const [round, setRound] = useState(3);
@@ -735,13 +737,23 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <div className="segmented-control" role="group" aria-label="맵 템플릿">
                 {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => { setGeometry(id); setPreviewArrival(null); }}>{boardGeometries[id].shortName}</button>)}
               </div>
-              <label className="select-label">
-                <Palette aria-hidden="true" />
-                <span className="sr-only">맵 스킨</span>
-                <select value={skin} onChange={(event) => setSkin(event.target.value as SkinId)}>
-                  {(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}
-                </select>
-              </label>
+              <div className="board-display-options">
+                <div className="board-view-toggle" role="group" aria-label="보드 보기 방식">
+                  <button type="button" aria-pressed={boardView === "2D"} onClick={() => { setBoardView("2D"); setLiveMessage("2D 평면 보드로 전환했습니다."); }}>
+                    <Grid2X2 aria-hidden="true" /><span>2D 평면</span>
+                  </button>
+                  <button type="button" aria-pressed={boardView === "3D"} onClick={() => { setBoardView("3D"); setLiveMessage("3D 입체 보드로 전환했습니다."); }}>
+                    <Box aria-hidden="true" /><span>3D 입체</span>
+                  </button>
+                </div>
+                <label className="select-label">
+                  <Palette aria-hidden="true" />
+                  <span className="sr-only">맵 스킨</span>
+                  <select value={skin} onChange={(event) => setSkin(event.target.value as SkinId)}>
+                    {(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div className="play-stage">
@@ -751,6 +763,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 tokens={liveTokens}
                 round={liveRound}
                 lastRoll={liveLastRoll}
+                viewMode={boardView}
                 onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
                 currentTurnLabel={currentTurnLabel}
                 eventLabel={boardEventLabel}

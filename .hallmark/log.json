@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-29",
+    "scope": "component",
+    "macrostructure": "Game Stage view switch",
+    "theme": "Classroom Adventure Table",
+    "enrichment": "Tier A switchable DOM/CSS 2D and perspective-3D board",
+    "brief": "Keep the existing flat board and add a commercial tabletop-style 3D viewing mode that shares game state"
+  },
+  {
+    "date": "2026-08-29",
     "scope": "app",
     "macrostructure": "Game Stage + Toy Workbench + Split Auth",
     "theme": "Classroom Adventure Table",

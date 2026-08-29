@@ -8,7 +8,7 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
 - Primary job: keep the board and the current action readable before exposing authoring controls.
 - Page family: **Game Stage** for play/dashboard, **Toy Workbench** for authoring, and **Split Auth** for teacher access.
 - Tone: playful premium toy. Cheerful enough for a game, controlled enough for a classroom.
-- Craft tier: pure CSS/DOM 2.5D board, pawn, landmark, and die artwork. No WebGL dependency.
+- Craft tier: switchable pure CSS/DOM 2D and perspective-3D board, pawn, landmark, and die artwork. No WebGL dependency.
 
 ## Visual rules
 
@@ -30,7 +30,7 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
 
 ## Component language
 
-- `GameBoard`: thick blue base, raised white tiles, green or theme-coloured centre terrain.
+- `GameBoard`: one shared game-state renderer with selectable 2D flat and 3D tabletop views; both retain the thick blue base, raised white tiles, and green or theme-coloured centre terrain.
 - `PhysicsDie`: oversized cream cube, 24px-equivalent corners, navy/coral pips, flat plastic highlights, drawn impact rays.
 - `TokenMark`: resin pawn silhouette with a letter badge; colour and silhouette/label communicate identity together.
 - `BoardTile`: number in the corner, Lucide icon, short label, and a thick lower edge.

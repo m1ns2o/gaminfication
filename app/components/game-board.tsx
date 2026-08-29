@@ -30,12 +30,15 @@ export type BoardMovement = {
   cardDirection?: 1 | -1;
 };
 
+export type BoardViewMode = "2D" | "3D";
+
 type GameBoardProps = {
   geometryId: BoardGeometryId;
   skinId: SkinId;
   tokens: Token[];
   round: number;
   lastRoll: number;
+  viewMode?: BoardViewMode;
   onRoll?: () => void;
   compact?: boolean;
   currentTurnLabel?: string;
@@ -122,6 +125,7 @@ export function GameBoard({
   tokens,
   round,
   lastRoll,
+  viewMode = "2D",
   onRoll,
   compact = false,
   currentTurnLabel = "김하늘 팀",
@@ -325,8 +329,22 @@ export function GameBoard({
   const displayedTokens = compact ? tokens : tokens.map((token) => ({ ...token, position: displayedPositions[token.id] ?? token.position }));
   const movingToken = movingTokenId ? displayedTokens.find((token) => token.id === movingTokenId) ?? null : null;
   const landedType = landedIndex === null ? null : tileTypes?.[landedIndex] ?? geometry.tiles[landedIndex].type;
+  const rollControl = !compact ? (
+    <div className="board-roll-control">
+      <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
+        <Dices aria-hidden="true" />
+        <span>{rolling ? "굴리는 중" : movingTokenId ? "이동 중" : "주사위 굴리기"}</span>
+      </button>
+    </div>
+  ) : null;
+  const diceOverlay = rolling && !compact ? (
+    <div className="dice-roll-overlay" role="status" aria-label={rollPhase === "result" ? `주사위 결과 ${lastRoll}` : "주사위를 굴리는 중"} data-phase={rollPhase}>
+      <PhysicsDie value={lastRoll} rollKey={rollCycle} />
+      <strong>{rollPhase === "result" ? <>주사위 결과 <b>{lastRoll}</b></> : "주사위가 굴러갑니다"}</strong>
+    </div>
+  ) : null;
   const board = (
-    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()}${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
+    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()} game-board--view-${viewMode.toLowerCase()}${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
       {geometry.tiles.map((baseTile) => {
         const type = tileTypes?.[baseTile.index] ?? baseTile.type;
         const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
@@ -345,29 +363,20 @@ export function GameBoard({
         </div>
       ) : null}
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
-      {!compact ? (
-        <div className="board-roll-control">
-          <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
-            <Dices aria-hidden="true" />
-            <span>{rolling ? "굴리는 중" : movingTokenId ? "이동 중" : "주사위 굴리기"}</span>
-          </button>
-        </div>
-      ) : null}
-      {rolling && !compact ? (
-        <div className="dice-roll-overlay" role="status" aria-label={rollPhase === "result" ? `주사위 결과 ${lastRoll}` : "주사위를 굴리는 중"} data-phase={rollPhase}>
-          <PhysicsDie value={lastRoll} rollKey={rollCycle} />
-          <strong>{rollPhase === "result" ? <>주사위 결과 <b>{lastRoll}</b></> : "주사위가 굴러갑니다"}</strong>
-        </div>
-      ) : null}
+      {viewMode === "2D" ? rollControl : null}
+      {viewMode === "2D" ? diceOverlay : null}
     </div>
   );
 
   return (
-    <section className={`game-board-frame${compact ? " game-board-frame--compact" : ""}`} aria-label={`${skinNames[skinId]} ${geometry.name} 보드`}>
-      {geometryId === "LINE_24" && !compact ? (
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focusable horizontal scroll region.
-        <div ref={scrollRef} className="game-board-scroll" role="region" aria-label="일직선 보드 좌우 스크롤" tabIndex={0}>{board}</div>
-      ) : board}
+    <section className={`game-board-frame game-board-frame--${viewMode.toLowerCase()}${compact ? " game-board-frame--compact" : ""}`} aria-label={`${skinNames[skinId]} ${geometry.name} ${viewMode === "3D" ? "입체" : "평면"} 보드`} data-view-mode={viewMode}>
+      <div className="game-board-visual">
+        {geometryId === "LINE_24" && !compact ? (
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focusable horizontal scroll region.
+          <div ref={scrollRef} className="game-board-scroll" role="region" aria-label="일직선 보드 좌우 스크롤" tabIndex={0}>{board}</div>
+        ) : board}
+        {viewMode === "3D" && !compact ? <div className="game-board-3d-hud">{rollControl}{diceOverlay}</div> : null}
+      </div>
       {!compact ? (
         <div className="board-console" data-state={rolling ? "rolling" : movingTokenId ? "moving" : landedType ? "arrived" : "idle"}>
           <div className="board-console__status"><span className="mono-label">ROUND {round}</span><strong>{rolling ? "주사위를 굴리는 중" : movingTokenId ? `${currentStep !== null ? currentStep + 1 : ""}번 칸으로 이동 중` : `${currentTurnLabel} 차례`}</strong><span>{landedType ? `${tileTypeLabels[landedType]} 칸 도착 · ${tileArrivalCopy[landedType]}` : eventLabel}</span></div>
