@@ -30,15 +30,12 @@ export type BoardMovement = {
   cardDirection?: 1 | -1;
 };
 
-export type BoardViewMode = "2D" | "3D";
-
 type GameBoardProps = {
   geometryId: BoardGeometryId;
   skinId: SkinId;
   tokens: Token[];
   round: number;
   lastRoll: number;
-  viewMode?: BoardViewMode;
   onRoll?: () => void;
   compact?: boolean;
   currentTurnLabel?: string;
@@ -84,10 +81,27 @@ function TokenMark({ token, moving = false }: { token: Token; moving?: boolean }
       title={token.label}
       aria-label={`${token.label}${token.active ? ", 현재 차례" : ""}`}
     >
-      <span className="token__figure" aria-hidden="true"><i /><i /></span>
+      <span className="token__base" aria-hidden="true" />
+      <span className="token__avatar" aria-hidden="true" />
       <span className="token__initial" aria-hidden="true">{glyph}</span>
     </span>
   );
+}
+
+function BoardScenery({ skinId }: { skinId: SkinId }) {
+  return (
+    <div className={`board-scenery board-scenery--${skinId.toLowerCase()}`} aria-hidden="true">
+      <span className="board-scenery__ground" />
+      <span className="board-scenery__item board-scenery__item--one" />
+      <span className="board-scenery__item board-scenery__item--two" />
+      <span className="board-scenery__item board-scenery__item--three" />
+      <span className="board-scenery__item board-scenery__item--four" />
+    </div>
+  );
+}
+
+function BoardPocket({ skinId }: { skinId: SkinId }) {
+  return <div className={`board-pocket board-pocket--${skinId.toLowerCase()}`} aria-hidden="true"><span /></div>;
 }
 
 function BoardTileView({ tile, tokens, currentStep, landed }: {
@@ -125,7 +139,6 @@ export function GameBoard({
   tokens,
   round,
   lastRoll,
-  viewMode = "2D",
   onRoll,
   compact = false,
   currentTurnLabel = "김하늘 팀",
@@ -344,38 +357,34 @@ export function GameBoard({
     </div>
   ) : null;
   const board = (
-    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()} game-board--view-${viewMode.toLowerCase()}${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
+    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()} game-board--view-2d${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
       {geometry.tiles.map((baseTile) => {
         const type = tileTypes?.[baseTile.index] ?? baseTile.type;
         const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
         return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.id !== movingTokenId && token.position === tile.index)} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} />;
       })}
+      {geometryId === "SPIRAL_24" ? <BoardPocket skinId={skinId} /> : null}
       {geometryId === "LOOP_24" ? (
         <div className="board-stage">
-          <div className="toy-town" aria-hidden="true">
-            <span className="toy-town__road" />
-            <span className="toy-town__school"><i /><i /><i /></span>
-            <span className="toy-town__lab"><i /><i /></span>
-            <span className="toy-town__tree toy-town__tree--left" />
-            <span className="toy-town__tree toy-town__tree--right" />
-          </div>
+          <BoardScenery skinId={skinId} />
           <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
         </div>
       ) : null}
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
-      {viewMode === "2D" ? rollControl : null}
-      {viewMode === "2D" ? diceOverlay : null}
+      {rollControl}
+      {diceOverlay}
     </div>
   );
 
+  const boardVisual = geometryId === "LINE_24" && !compact ? (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focusable horizontal scroll region.
+    <div ref={scrollRef} className="game-board-scroll" role="region" aria-label="일직선 보드 좌우 스크롤" tabIndex={0}>{board}</div>
+  ) : board;
+
   return (
-    <section className={`game-board-frame game-board-frame--${viewMode.toLowerCase()}${compact ? " game-board-frame--compact" : ""}`} aria-label={`${skinNames[skinId]} ${geometry.name} ${viewMode === "3D" ? "입체" : "평면"} 보드`} data-view-mode={viewMode}>
+    <section className={`game-board-frame game-board-frame--2d${compact ? " game-board-frame--compact" : ""}`} aria-label={`${skinNames[skinId]} ${geometry.name} 평면 보드`} data-view-mode="2D">
       <div className="game-board-visual">
-        {geometryId === "LINE_24" && !compact ? (
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focusable horizontal scroll region.
-          <div ref={scrollRef} className="game-board-scroll" role="region" aria-label="일직선 보드 좌우 스크롤" tabIndex={0}>{board}</div>
-        ) : board}
-        {viewMode === "3D" && !compact ? <div className="game-board-3d-hud">{rollControl}{diceOverlay}</div> : null}
+        {boardVisual}
       </div>
       {!compact ? (
         <div className="board-console" data-state={rolling ? "rolling" : movingTokenId ? "moving" : landedType ? "arrived" : "idle"}>

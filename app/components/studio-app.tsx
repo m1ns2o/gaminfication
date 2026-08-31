@@ -3,9 +3,9 @@
 import {
   ArrowLeft,
   BarChart3,
-  Box,
   BookOpen,
   Check,
+  ChevronDown,
   CircleHelp,
   Clock3,
   Copy,
@@ -13,6 +13,7 @@ import {
   FilePlus2,
   Gamepad2,
   Globe2,
+  GraduationCap,
   Grid2X2,
   Library,
   Link2,
@@ -24,7 +25,9 @@ import {
   Palette,
   Play,
   Plus,
+  RotateCcw,
   Search,
+  SearchX,
   Send,
   Settings,
   Share2,
@@ -33,7 +36,8 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { GameBoard, type BoardMovement, type BoardViewMode } from "./game-board";
+import type { LucideIcon } from "lucide-react";
+import { GameBoard, type BoardMovement } from "./game-board";
 import { ContentEditor } from "./content-editor";
 import { PreviewTileAction, type PreviewArrivalType } from "./preview-tile-action";
 import { RoomPrompt } from "./room-prompt";
@@ -214,6 +218,221 @@ const libraryGames: Game[] = [
   },
 ];
 
+type FilterOptionGroup = {
+  group: string;
+  options: { value: string; label: string }[];
+};
+
+const gradeGroups = [
+  { stage: "초등", years: 6 },
+  { stage: "중등", years: 3 },
+  { stage: "고등", years: 3 },
+];
+const subjectGroups: FilterOptionGroup[] = [
+  {
+    group: "국어",
+    options: [
+      { value: "국어", label: "국어" },
+      { value: "화법과 작문", label: "화법과 작문" },
+      { value: "독서", label: "독서" },
+      { value: "문학", label: "문학" },
+      { value: "언어와 매체", label: "언어와 매체" },
+    ],
+  },
+  {
+    group: "수학",
+    options: [
+      { value: "수학", label: "수학" },
+      { value: "수학Ⅰ", label: "수학Ⅰ" },
+      { value: "수학Ⅱ", label: "수학Ⅱ" },
+      { value: "확률과 통계", label: "확률과 통계" },
+      { value: "미적분", label: "미적분" },
+      { value: "기하", label: "기하" },
+    ],
+  },
+  {
+    group: "영어",
+    options: [
+      { value: "영어", label: "영어" },
+      { value: "영어Ⅰ", label: "영어Ⅰ" },
+      { value: "영어Ⅱ", label: "영어Ⅱ" },
+      { value: "영어 독해와 작문", label: "영어 독해와 작문" },
+      { value: "영어 회화", label: "영어 회화" },
+    ],
+  },
+  {
+    group: "사회",
+    options: [
+      { value: "사회", label: "사회" },
+      { value: "통합사회", label: "통합사회" },
+      { value: "한국지리", label: "한국지리" },
+      { value: "세계지리", label: "세계지리" },
+      { value: "세계사", label: "세계사" },
+      { value: "동아시아사", label: "동아시아사" },
+      { value: "경제", label: "경제" },
+      { value: "정치와 법", label: "정치와 법" },
+      { value: "사회·문화", label: "사회·문화" },
+      { value: "생활과 윤리", label: "생활과 윤리" },
+      { value: "윤리와 사상", label: "윤리와 사상" },
+      { value: "한국사", label: "한국사" },
+    ],
+  },
+  {
+    group: "과학",
+    options: [
+      { value: "과학", label: "과학" },
+      { value: "통합과학", label: "통합과학" },
+      { value: "과학탐구실험", label: "과학탐구실험" },
+      { value: "물리학Ⅰ", label: "물리학Ⅰ" },
+      { value: "물리학Ⅱ", label: "물리학Ⅱ" },
+      { value: "화학Ⅰ", label: "화학Ⅰ" },
+      { value: "화학Ⅱ", label: "화학Ⅱ" },
+      { value: "생명과학Ⅰ", label: "생명과학Ⅰ" },
+      { value: "생명과학Ⅱ", label: "생명과학Ⅱ" },
+      { value: "지구과학Ⅰ", label: "지구과학Ⅰ" },
+      { value: "지구과학Ⅱ", label: "지구과학Ⅱ" },
+    ],
+  },
+  {
+    group: "기타",
+    options: [
+      { value: "미술", label: "미술" },
+      { value: "음악", label: "음악" },
+      { value: "체육", label: "체육" },
+      { value: "정보", label: "정보" },
+      { value: "기술·가정", label: "기술·가정" },
+      { value: "미지정", label: "미지정" },
+    ],
+  },
+];
+
+// 학년(학교급)별로 노출할 과목. 초등은 통합 교과, 중등·고등은 선택과목까지.
+const subjectsByStage: Record<string, string[]> = {
+  초등: ["국어", "수학", "사회", "과학", "영어", "미술", "음악", "체육", "정보", "기술·가정"],
+  중등: ["국어", "수학", "영어", "사회", "과학", "미술", "음악", "체육", "정보", "기술·가정"],
+  고등: ["국어", "수학", "영어", "한국사", "사회", "과학", "미술", "음악", "체육", "정보", "기술·가정"],
+};
+
+// 학년 필터에서 학교급(초등/중등/고등)을 추출. "전체"면 전체 과목.
+function activeStage(gradeFilterValue: string): string | null {
+  if (gradeFilterValue === "전체") return null;
+  return gradeFilterValue.startsWith("초등") ? "초등" : gradeFilterValue.startsWith("중등") ? "중등" : gradeFilterValue.startsWith("고등") ? "고등" : null;
+}
+
+function matchesGradeFilter(grade: string, filter: string) {
+  if (filter === "전체") return true;
+  if (filter.endsWith(" 전체")) return grade.startsWith(filter.slice(0, -3));
+  return grade === filter;
+}
+
+type FilterDropdownProps = {
+  label: string;
+  icon: LucideIcon;
+  value: string;
+  options: FilterOptionGroup[];
+  onSelect: (value: string) => void;
+  align?: "start" | "end";
+};
+
+function FilterDropdown({ label, icon: Icon, value, options, onSelect, align = "start" }: FilterDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef<HTMLButtonElement[]>([]);
+  const flatOptions = options.flatMap((group) => group.options);
+  const isActive = value !== "전체";
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        rootRef.current?.querySelector<HTMLButtonElement>("[data-filter-trigger]")?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  function moveFocus(direction: 1 | -1) {
+    const next = direction === 1 ? activeIndex + 1 : activeIndex - 1;
+    const clamped = next < 0 ? flatOptions.length - 1 : next >= flatOptions.length ? 0 : next;
+    setActiveIndex(clamped);
+    itemsRef.current[clamped]?.focus();
+  }
+
+  function select(valueToSelect: string) {
+    onSelect(valueToSelect);
+    setOpen(false);
+    setActiveIndex(-1);
+    rootRef.current?.querySelector<HTMLButtonElement>("[data-filter-trigger]")?.focus();
+  }
+
+  return (
+    <div className={`filter-dropdown${isActive ? " is-active" : ""}`} ref={rootRef}>
+      <button
+        type="button"
+        data-filter-trigger
+        className="filter-dropdown__trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (!open) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            moveFocus(1);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            moveFocus(-1);
+          }
+        }}
+      >
+        <Icon aria-hidden="true" />
+        <span>{isActive ? value : label}</span>
+        <ChevronDown aria-hidden="true" className="filter-dropdown__chevron" />
+      </button>
+      {open && (
+        <div className={`filter-popover filter-popover--${align}`} role="listbox" aria-label={label} ref={listRef}>
+          {options.map((group, groupIndex) => (
+            <div className="filter-popover__group" key={group.group}>
+              <span className="filter-popover__group-label">{group.group}</span>
+              {group.options.map((option, optionIndex) => {
+                const flatIndex = options.slice(0, groupIndex).reduce((sum, g) => sum + g.options.length, 0) + optionIndex;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={value === option.value}
+                    className={`filter-popover__option${value === option.value ? " is-selected" : ""}`}
+                    ref={(element) => {
+                      itemsRef.current[flatIndex] = element as HTMLButtonElement;
+                    }}
+                    onClick={() => select(option.value)}
+                    onMouseEnter={() => setActiveIndex(flatIndex)}
+                  >
+                    <Check aria-hidden="true" className="filter-popover__check" />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const sampleTokens = [
   { id: "t1", label: "김하늘 팀", position: 8, symbol: "book" as const, active: true },
   { id: "t2", label: "박지우 팀", position: 5, symbol: "bulb" as const },
@@ -372,7 +591,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [selectedId, setSelectedId] = useState(initialGames[0].id);
   const [geometry, setGeometry] = useState<BoardGeometryId>(initialGames[0].template);
   const [skin, setSkin] = useState<SkinId>(initialGames[0].skin);
-  const [boardView, setBoardView] = useState<BoardViewMode>("2D");
   const [tokens, setTokens] = useState(sampleTokens);
   const [lastRoll, setLastRoll] = useState(4);
   const [round, setRound] = useState(3);
@@ -384,7 +602,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [joinLookupStatus, setJoinLookupStatus] = useState<"idle" | "loading" | "found" | "missing">("idle");
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState("");
-  const [libraryFilter, setLibraryFilter] = useState("전체");
+  const [gradeFilter, setGradeFilter] = useState("전체");
+  const [subjectFilter, setSubjectFilter] = useState("전체");
   const [liveMessage, setLiveMessage] = useState("조선 후기, 변화의 길 초안을 불러왔습니다.");
   const [editorSection, setEditorSection] = useState<EditorSection>("questions");
   const [realtimeBusy, setRealtimeBusy] = useState(false);
@@ -395,14 +614,16 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const localMovementSequence = useRef(1);
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0];
+  const hasLibraryFilter = gradeFilter !== "전체" || subjectFilter !== "전체" || search.trim() !== "";
   const filteredLibrary = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return libraryGames.filter((game) => {
       const matchesKeyword = !keyword || `${game.title} ${game.description} ${game.subject} ${game.grade}`.toLowerCase().includes(keyword);
-      const matchesFilter = libraryFilter === "전체" || game.subject === libraryFilter;
-      return matchesKeyword && matchesFilter;
+      const matchesGrade = matchesGradeFilter(game.grade, gradeFilter);
+      const matchesSubject = subjectFilter === "전체" || game.subject === subjectFilter;
+      return matchesKeyword && matchesGrade && matchesSubject;
     });
-  }, [search, libraryFilter]);
+  }, [search, gradeFilter, subjectFilter]);
 
   const liveTokens = realtime.roomState
     ? realtime.roomState.players.map((player) => ({
@@ -530,6 +751,12 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
   function updateTileTypes(tileTypes: TileType[]) {
     setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, tileTypes } : game));
+  }
+
+  function resetLibraryFilters() {
+    setSearch("");
+    setGradeFilter("전체");
+    setSubjectFilter("전체");
   }
 
   function rollDice() {
@@ -738,14 +965,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => { setGeometry(id); setPreviewArrival(null); }}>{boardGeometries[id].shortName}</button>)}
               </div>
               <div className="board-display-options">
-                <div className="board-view-toggle" role="group" aria-label="보드 보기 방식">
-                  <button type="button" aria-pressed={boardView === "2D"} onClick={() => { setBoardView("2D"); setLiveMessage("2D 평면 보드로 전환했습니다."); }}>
-                    <Grid2X2 aria-hidden="true" /><span>2D 평면</span>
-                  </button>
-                  <button type="button" aria-pressed={boardView === "3D"} onClick={() => { setBoardView("3D"); setLiveMessage("3D 입체 보드로 전환했습니다."); }}>
-                    <Box aria-hidden="true" /><span>3D 입체</span>
-                  </button>
-                </div>
                 <label className="select-label">
                   <Palette aria-hidden="true" />
                   <span className="sr-only">맵 스킨</span>
@@ -763,7 +982,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 tokens={liveTokens}
                 round={liveRound}
                 lastRoll={liveLastRoll}
-                viewMode={boardView}
                 onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
                 currentTurnLabel={currentTurnLabel}
                 eventLabel={boardEventLabel}
@@ -857,19 +1075,87 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             <label className="search-field">
               <Search aria-hidden="true" />
               <span className="sr-only">게임 검색</span>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="제목, 설명, 과목으로 검색" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="제목, 설명으로 검색" />
             </label>
-            <div className="filter-chips" role="group" aria-label="과목 필터">
-              {["전체", "국어", "수학", "사회", "과학", "영어"].map((filter) => (
-                <button key={filter} type="button" aria-pressed={libraryFilter === filter} onClick={() => setLibraryFilter(filter)}>{filter}</button>
-              ))}
+            <div className="library-dropdowns" role="group" aria-label="학년과 과목으로 찾기">
+              <FilterDropdown
+                label="전체 학년"
+                icon={GraduationCap}
+                value={gradeFilter}
+                onSelect={setGradeFilter}
+                options={[
+                  { group: "학년", options: [{ value: "전체", label: "전체 학년" }] },
+                  ...gradeGroups.map(({ stage, years }) => ({
+                    group: stage,
+                    options: [
+                      { value: `${stage} 전체`, label: `${stage} 전체` },
+                      ...Array.from({ length: years }, (_, index) => index + 1).map((year) => ({ value: `${stage} ${year}`, label: `${stage} ${year}학년` })),
+                    ],
+                  })),
+                ]}
+              />
+              <FilterDropdown
+                label="전체 과목"
+                icon={BookOpen}
+                value={subjectFilter}
+                onSelect={setSubjectFilter}
+                align="end"
+                options={(() => {
+                  const stage = activeStage(gradeFilter);
+                  if (!stage) {
+                    return [
+                      { group: "과목", options: [{ value: "전체", label: "전체 과목" }] },
+                      ...subjectGroups.map((group) => ({ group: group.group, options: group.options })),
+                    ];
+                  }
+                  const stageSubjects = subjectsByStage[stage] ?? [];
+                  const groups = subjectGroups
+                    .map((group) => ({ ...group, options: group.options.filter((option) => stageSubjects.includes(option.value)) }))
+                    .filter((group) => group.options.length > 0);
+                  return [
+                    { group: "과목", options: [{ value: "전체", label: "전체 과목" }] },
+                    ...groups,
+                  ];
+                })()}
+              />
             </div>
+            {hasLibraryFilter && (
+              <div className="active-filters" aria-label="적용된 필터">
+                {gradeFilter !== "전체" && (
+                  <button className="active-filters__chip" type="button" onClick={() => setGradeFilter("전체")}>
+                    <GraduationCap aria-hidden="true" />
+                    {gradeFilter}
+                    <X aria-hidden="true" />
+                    <span className="sr-only">학년 필터 지우기</span>
+                  </button>
+                )}
+                {subjectFilter !== "전체" && (
+                  <button className="active-filters__chip" type="button" onClick={() => setSubjectFilter("전체")}>
+                    <BookOpen aria-hidden="true" />
+                    {subjectFilter}
+                    <X aria-hidden="true" />
+                    <span className="sr-only">과목 필터 지우기</span>
+                  </button>
+                )}
+                <button className="text-button active-filters__reset" type="button" onClick={() => { setGradeFilter("전체"); setSubjectFilter("전체"); }}>
+                  <RotateCcw aria-hidden="true" /> 필터 초기화
+                </button>
+              </div>
+            )}
           </section>
           <section className="library-results" aria-labelledby="library-results-heading">
             <div className="library-results__head">
-              <h2 id="library-results-heading">추천 게임</h2>
+              <h2 id="library-results-heading">{hasLibraryFilter ? "검색 결과" : "추천 게임"}</h2>
               <span aria-live="polite">{filteredLibrary.length}개 결과</span>
             </div>
+            {filteredLibrary.length === 0 ? (
+              <div className="library-empty">
+                <SearchX aria-hidden="true" />
+                <strong>조건에 맞는 게임이 없어요</strong>
+                <p>다른 학년이나 과목을 골라 보거나, 검색어를 바꿔 보세요.</p>
+                <button className="button button--quiet" type="button" onClick={resetLibraryFilters}><RotateCcw aria-hidden="true" /> 필터 초기화</button>
+              </div>
+            ) : (
             <div className="library-grid">
               {filteredLibrary.map((game, index) => (
                 <article className={`library-card library-card--${index % 3}`} key={game.id}>
@@ -889,6 +1175,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 </article>
               ))}
             </div>
+            )}
           </section>
         </main>
       )}

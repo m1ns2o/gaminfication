@@ -13,8 +13,6 @@ export const teacherAccounts = sqliteTable("teacher_accounts", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
   displayName: text("display_name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  passwordSalt: text("password_salt").notNull(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => [
@@ -29,6 +27,19 @@ export const teacherSessions = sqliteTable("teacher_sessions", {
 }, (table) => [
   index("idx_teacher_sessions_teacher").on(table.teacherId),
   index("idx_teacher_sessions_expiry").on(table.expiresAt),
+]);
+
+export const oauthAccounts = sqliteTable("oauth_accounts", {
+  id: text("id").primaryKey(),
+  provider: text("provider", { enum: ["GOOGLE"] }).notNull(),
+  providerSubject: text("provider_subject").notNull(),
+  teacherId: text("teacher_id").notNull().references(() => teacherAccounts.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("idx_oauth_accounts_provider_subject").on(table.provider, table.providerSubject),
+  index("idx_oauth_accounts_teacher").on(table.teacherId),
 ]);
 
 export const games = sqliteTable("games", {

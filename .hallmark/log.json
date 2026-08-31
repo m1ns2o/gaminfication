@@ -2,6 +2,22 @@
   {
     "date": "2026-08-29",
     "scope": "component",
+    "macrostructure": "Asset-led 2D game stage",
+    "theme": "Classroom Adventure Table",
+    "enrichment": "Kenney CC0 isometric scenery and character tokens on a tactile DOM/CSS board",
+    "brief": "Remove 3D from the active product, archive it outside the build, and refine every 2D map with reusable game assets"
+  },
+  {
+    "date": "2026-08-29",
+    "scope": "component",
+    "macrostructure": "Game Stage WebGL renderer",
+    "theme": "Classroom Adventure Table",
+    "enrichment": "Tier-A React Three Fiber tabletop with Rapier die physics and DOM fallback",
+    "brief": "Replace the CSS-perspective 3D mode with an interactive commercial-style WebGL board while preserving the 2D game"
+  },
+  {
+    "date": "2026-08-29",
+    "scope": "component",
     "macrostructure": "Game Stage view switch",
     "theme": "Classroom Adventure Table",
     "enrichment": "Tier A switchable DOM/CSS 2D and perspective-3D board",

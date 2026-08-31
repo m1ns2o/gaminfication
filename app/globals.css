@@ -17,7 +17,7 @@
 
 html,
 body {
-  min-width: 20rem;
+  min-width: 0;
   overflow-x: clip;
 }
 

@@ -8,11 +8,12 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
 - Primary job: keep the board and the current action readable before exposing authoring controls.
 - Page family: **Game Stage** for play/dashboard, **Toy Workbench** for authoring, and **Split Auth** for teacher access.
 - Tone: playful premium toy. Cheerful enough for a game, controlled enough for a classroom.
-- Craft tier: switchable pure CSS/DOM 2D and perspective-3D board, pawn, landmark, and die artwork. No WebGL dependency.
+- Craft tier: the active product build uses a DOM/CSS 2D board with self-hosted PNG scenery and character assets. The previous WebGL implementation remains as disconnected source for future experiments and is not imported by the production application.
 
 ## Visual rules
 
 - The board is the largest object in the dashboard. Supporting panels behave like edge trays, not nested cards.
+- Turn status, themed scenery, and the roll action stay visually attached to the 2D board so the game remains readable on classroom displays and phones.
 - White and sky-tinted surfaces sit on a deep navy outline. Important physical objects receive one hard contact shadow plus one soft scene shadow.
 - Blue is the interface anchor. Coral is reserved for the roll action, amber for rewards, mint for rest/positive state, and violet for events. These semantic colours may occupy the board but stay sparse in authoring UI.
 - Display type uses Bricolage Grotesque; Korean body copy and compact labels use Noto Sans KR; room codes use Geist Mono.
@@ -30,13 +31,20 @@ Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama
 
 ## Component language
 
-- `GameBoard`: one shared game-state renderer with selectable 2D flat and 3D tabletop views; both retain the thick blue base, raised white tiles, and green or theme-coloured centre terrain.
-- `PhysicsDie`: oversized cream cube, 24px-equivalent corners, navy/coral pips, flat plastic highlights, drawn impact rays.
-- `TokenMark`: resin pawn silhouette with a letter badge; colour and silhouette/label communicate identity together.
+- `GameBoard`: one DOM/CSS 2D renderer retains the thick blue base, raised white tiles, and theme-coloured centre terrain. Game state, movement, quiz, and card behaviour remain independent of the visual assets.
+- `PhysicsDie`: oversized cream CSS cube with navy/coral pips. It follows the existing multi-rotation choreography and settles on the authoritative result.
+- `TokenMark`: a Kenney Toon Character stands on a coloured resin base. Character silhouette, base colour, and the small letter badge communicate identity together.
 - `BoardTile`: number in the corner, Lucide icon, short label, and a thick lower edge.
 - `Game Stage`: board first; game list and live session are secondary trays.
 - `Toy Workbench`: quieter surfaces, same outlines/tokens, sticky stage preview.
 - `Split Auth`: the same sky and tabletop materials, with a small CSS board scene rather than unrelated marketing art.
+
+## Asset policy
+
+- Active 2D art is self-hosted under `public/assets/kenney-2d`; gameplay must not depend on a third-party CDN.
+- Campus buildings, eco scenery, space props, and player characters come from Kenney CC0 kits. Their provenance is recorded in `public/assets/kenney-2d/THIRD_PARTY_ASSETS.md`.
+- The archived WebGL source, styles, and GLB files live under `archive/webgl`. That directory is outside the active application and public asset tree, so the production build cannot import or publish them accidentally.
+- React Three Fiber, Drei, Rapier, and Three remain development-only dependencies for anyone who later revives the archived renderer.
 
 ## Exports
 

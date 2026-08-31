@@ -36,7 +36,24 @@ npm run dev
 
 개발 서버는 기본적으로 `http://localhost:3000`에서 시작합니다. 로컬 D1과 Durable Object 상태는 `.wrangler/` 아래에 저장되며 Git에서 제외됩니다.
 
-`wrangler.jsonc`의 D1 `database_id`는 로컬 개발용 placeholder입니다. 실제 Cloudflare 계정에 직접 배포할 때는 생성한 D1 데이터베이스 ID로 교체해야 합니다.
+### Google OAuth
+
+Google Cloud Console에서 **웹 애플리케이션** OAuth 클라이언트를 만들고 승인된 리디렉션 URI에 다음 주소를 등록합니다.
+
+- 로컬: `http://localhost:3000/api/v1/auth/google/callback`
+- 운영: `https://<서비스 도메인>/api/v1/auth/google/callback`
+
+로컬에서는 `.dev.vars.example`을 `.dev.vars`로 복사해 실제 값을 입력합니다. 운영 비밀키는 소스나 `wrangler.jsonc`에 넣지 않고 다음 명령으로 등록합니다.
+
+```bash
+npx wrangler secret put GOOGLE_OAUTH_CLIENT_ID
+npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
+npm run db:migrate:remote
+```
+
+로그인은 Authorization Code + PKCE와 일회용 `state` 쿠키를 사용합니다. Google 액세스 토큰은 사용자 정보를 확인하는 요청에만 사용하고 데이터베이스에는 저장하지 않습니다.
+
+`wrangler.jsonc`는 현재 Cloudflare 계정의 `site-creator-d1`에 연결되어 있습니다. 다른 계정으로 옮길 때는 `npx wrangler d1 list`로 대상 UUID를 확인해 `database_id`를 교체한 뒤 원격 마이그레이션을 적용합니다.
 
 ## Commands
 
@@ -45,9 +62,13 @@ npm run dev
 - `npm run lint`: React와 TypeScript ESLint 검사
 - `npm run test:unit`: 게임 규칙과 프로젝트 구조 테스트
 - `npm run test:realtime`: 실행 중인 로컬 서버에 진행자·참가자를 연결하는 WebSocket 통합 테스트
+- `npm run test:realtime:local`: 로컬 D1에 1시간짜리 테스트 교사 세션을 준비한 뒤 WebSocket 통합 테스트 실행
 - `npm test`: 빌드 후 전체 비네트워크 테스트
 - `npm run db:generate`: Drizzle 마이그레이션 생성
 - `npm run db:migrate:local`: 로컬 D1 마이그레이션 적용
+- `npm run db:migrate:remote`: 운영 D1에 새 OAuth 계정 연결 테이블을 적용
+
+실시간 로컬 통합 테스트는 먼저 `npm run dev`를 실행한 상태에서 별도 터미널에서 `npm run test:realtime:local`로 실행합니다. 테스트 실행기는 `localhost`만 허용하며 운영 인증을 우회하는 API를 만들지 않습니다. 배포 환경을 검사할 때는 로그인한 브라우저의 세션 토큰을 `CLASSLOOP_TEST_SESSION_TOKEN`에 명시적으로 전달한 뒤 `npm run test:realtime`을 사용합니다.
 
 ## Realtime implementation
 

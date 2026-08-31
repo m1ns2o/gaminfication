@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 
 const baseUrl = process.env.CLASSLOOP_BASE_URL ?? "http://localhost:3000";
+const teacherSessionToken = process.env.CLASSLOOP_TEST_SESSION_TOKEN?.trim();
+
+if (!teacherSessionToken) {
+  throw new Error("CLASSLOOP_TEST_SESSION_TOKEN is required. For local testing, run `npm run test:realtime:local`.");
+}
 
 async function requestJson(path, init) {
   const response = await fetch(new URL(path, baseUrl), init);
   const payload = await response.json();
   if (!response.ok) throw new Error(`${response.status} ${JSON.stringify(payload)}`);
   return payload;
+}
+
+function withTeacherAuth(init = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("cookie", `classloop_teacher_session=${encodeURIComponent(teacherSessionToken)}`);
+  return { ...init, headers };
+}
+
+function teacherRequest(path, init = {}) {
+  return requestJson(path, withTeacherAuth(init));
 }
 
 function socketUrl(path) {
@@ -59,23 +74,23 @@ function connect(path) {
   });
 }
 
-const createdGame = await requestJson("/api/v1/me/games", {
+const createdGame = await teacherRequest("/api/v1/me/games", {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ title: `실시간 퀴즈 검증 ${Date.now()}`, template: "LOOP_24", skin: "CAMPUS" }),
 });
-await requestJson(`/api/v1/games/${createdGame.game.id}`, {
+await teacherRequest(`/api/v1/games/${createdGame.game.id}`, {
   method: "PUT",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ playMode: "TEAM", teamCount: 2 }),
 });
-await requestJson(`/api/v1/games/${createdGame.game.id}/questions`, {
+await teacherRequest(`/api/v1/games/${createdGame.game.id}/questions`, {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ type: "SHORT_ANSWER", prompt: "정조가 설치한 왕실 도서관은?", correctAnswer: "규장각", explanation: "정조가 설치했습니다.", points: 20, timeLimitSeconds: 5, answerMode: "ALL" }),
 });
 
-const hostSession = await requestJson("/api/v1/rooms", {
+const hostSession = await teacherRequest("/api/v1/rooms", {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ gameId: createdGame.game.id }),
@@ -129,7 +144,7 @@ try {
 
   let resultsPayload;
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const response = await fetch(new URL(`/api/v1/rooms/${hostSession.room.id}/results`, baseUrl));
+    const response = await fetch(new URL(`/api/v1/rooms/${hostSession.room.id}/results`, baseUrl), withTeacherAuth());
     if (response.ok) {
       resultsPayload = await response.json();
       break;
