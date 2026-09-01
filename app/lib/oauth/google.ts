@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "../../db";
-import { oauthAccounts, profiles, teacherAccounts } from "../../db/schema";
-import { normalizeTeacherEmail, safeAuthReturnTo, validTeacherEmail } from "./auth-utils";
-export { safeAuthReturnTo } from "./auth-utils";
+import { getDb } from "../../../db";
+import { oauthAccounts, profiles, teacherAccounts } from "../../../db/schema";
+import { normalizeTeacherEmail, safeAuthReturnTo, validTeacherEmail } from "../auth-validation";
+export { safeAuthReturnTo } from "../auth-validation";
 
 const GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";

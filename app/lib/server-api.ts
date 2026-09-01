@@ -1,4 +1,4 @@
-import { getTeacherFromCookie } from "./teacher-auth";
+import { getTeacherFromCookie } from "./session";
 
 export async function getCreatorId(request: Request) {
   if (request.headers.get("x-classloop-anonymous") === "true") return null;

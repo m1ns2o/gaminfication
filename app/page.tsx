@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { StudioApp } from "./components/studio-app";
-import { getTeacherFromCookie } from "./lib/teacher-auth";
+import { HomeJoin } from "./components/home-join";
 
 export const metadata: Metadata = {
-  title: "나의 수업 게임",
-  description: "24칸 맵을 만들고 실시간 수업 방을 시작하세요.",
+  title: "게임 코드로 참가하기",
+  description: "선생님이 알려준 게임 코드를 입력하고 Classloop 수업 게임에 참가하세요.",
 };
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const teacher = await getTeacherFromCookie(requestHeaders.get("cookie")).catch(() => null);
-  const user = teacher ? { displayName: teacher.displayName, email: teacher.email } : null;
-  return <StudioApp auth={{ user, signInPath: "/login?returnTo=%2F", signOutPath: "/api/v1/auth/logout" }} />;
+export default async function Home({ searchParams }: { searchParams: Promise<{ code?: string }> }) {
+  const params = await searchParams;
+  // QR 스캔 / 공유 링크(?code=…)로 접속하면 서버에서 코드를 읽어 자동 입력합니다.
+  const initialCode = typeof params.code === "string" ? params.code.replace(/\D/g, "").slice(0, 6) : "";
+  return <HomeJoin initialCode={initialCode} />;
 }

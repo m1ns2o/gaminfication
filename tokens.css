@@ -67,6 +67,12 @@
   --text-3xl: 2.9rem;
   --text-display: clamp(2.25rem, 5vw, 4.5rem);
 
+  --text-hero: clamp(2rem, 5.5vw, 3.6rem);
+  --text-title: clamp(1.5rem, 3vw, 2.3rem);
+  --text-section: clamp(1.15rem, 2vw, 1.5rem);
+  --text-body: 0.92rem;
+  --text-caption: 0.78rem;
+
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);

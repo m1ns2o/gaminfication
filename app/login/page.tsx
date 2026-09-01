@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Gamepad2, ShieldCheck } from "lucide-react";
-import { getTeacherFromCookie } from "../lib/teacher-auth";
+import { getTeacherFromCookie } from "../lib/session";
 
 export const metadata: Metadata = {
   title: "교사용 로그인",

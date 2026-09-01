@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeAuthReturnTo } from "./auth-validation";
 
 export type ChatGPTUser = {
   userId: string;
@@ -17,6 +18,8 @@ const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
+// Sign in with ChatGPT 경로는 호스팅 제공자(Dispatch)가 소유하므로 상대 경로만 검증합니다.
+const SIGN_IN_BASE_ORIGIN = "https://app.local";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
@@ -59,26 +62,10 @@ export function chatGPTSignOutPath(returnTo = "/"): string {
 }
 
 function safeRelativeReturnPath(value: string): string {
-  if (!value.startsWith("/") || value.startsWith("//")) return "/";
-
-  let url: URL;
-  try {
-    url = new URL(value, "https://app.local");
-  } catch {
-    return "/";
-  }
-  if (url.origin !== "https://app.local") return "/";
-  if (isReservedAuthPath(url.pathname)) return "/";
-
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
-function isReservedAuthPath(pathname: string): boolean {
-  return (
-    pathname === SIGN_IN_PATH ||
-    pathname === SIGN_OUT_PATH ||
-    pathname === CALLBACK_PATH
-  );
+  return safeAuthReturnTo(value, {
+    reserved: [SIGN_IN_PATH, SIGN_OUT_PATH, CALLBACK_PATH],
+    baseOrigin: SIGN_IN_BASE_ORIGIN,
+  });
 }
 
 function safeDecodeURIComponent(value: string): string | null {

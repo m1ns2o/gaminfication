@@ -568,11 +568,11 @@
 
 .game-list-item {
   display: grid;
-  min-height: 4.75rem;
+  min-height: 4.25rem;
   min-width: 0;
   grid-template-columns: 2.75rem minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   padding: var(--space-xs);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -617,18 +617,24 @@
 .game-list-item__copy {
   display: grid;
   min-width: 0;
+  gap: var(--space-3xs);
 }
 
 .game-list-item__copy strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
   font-size: var(--text-sm);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .game-list-item__copy span {
   color: var(--color-muted);
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .game-list-item__meta {
@@ -2829,7 +2835,7 @@
 
 .room-code-layout {
   display: grid;
-  grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 10.5rem) minmax(0, 1fr);
   gap: var(--space-lg);
   align-items: center;
   padding: var(--space-lg);
@@ -2839,21 +2845,42 @@
 
 .qr-mark {
   display: grid;
-  aspect-ratio: 1;
-  grid-template-columns: repeat(11, minmax(0, 1fr));
-  gap: var(--space-3xs);
+  gap: var(--space-xs);
+  justify-items: center;
   padding: var(--space-xs);
-  border: 1px solid var(--color-ink);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
+  box-shadow: var(--shadow-contact);
 }
 
-.qr-mark i {
+.qr-mark img {
   display: block;
-  background: var(--color-surface);
+  width: 9.5rem;
+  height: 9.5rem;
+  border: 2px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
 }
 
-.qr-mark i.is-dark {
-  background: var(--color-ink);
+.qr-mark__placeholder {
+  display: grid;
+  width: 9.5rem;
+  height: 9.5rem;
+  place-items: center;
+  border: 2px dashed var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.qr-mark__hint {
+  color: var(--color-ink-soft);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-align: center;
 }
 
 .room-code-copy {
@@ -3098,7 +3125,11 @@
 
   .library-tools {
     grid-template-columns: minmax(18rem, 1fr) auto;
-    align-items: center;
+    align-items: end;
+  }
+
+  .library-dropdowns {
+    justify-content: flex-end;
   }
 
   .library-grid {
@@ -4059,7 +4090,7 @@
     grid-template-areas:
       "intro intro intro"
       "games board session";
-    grid-template-columns: minmax(12rem, 0.62fr) minmax(34rem, 2.55fr) minmax(13rem, 0.68fr);
+    grid-template-columns: minmax(15rem, 0.72fr) minmax(34rem, 2.5fr) minmax(13rem, 0.68fr);
     align-items: start;
   }
 
@@ -4074,7 +4105,7 @@
 
 @media (min-width: 90rem) {
   .dashboard-shell {
-    grid-template-columns: minmax(13rem, 0.58fr) minmax(42rem, 2.8fr) minmax(14rem, 0.62fr);
+    grid-template-columns: minmax(16.5rem, 0.62fr) minmax(42rem, 2.8fr) minmax(14rem, 0.62fr);
   }
 }
 
@@ -4694,4 +4725,1147 @@
   .active-filters__chip:hover {
     background: var(--color-amber);
   }
+}
+
+/* ============================================================
+ * Design polish pass — typography scale, interaction feedback,
+ * layout rhythm. Preserves the Classroom Adventure Table theme.
+ * ============================================================ */
+
+/* ---------- Typography scale: clearer hierarchy ---------- */
+.workspace-intro h1,
+.library-hero h1 {
+  font-size: var(--text-hero);
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+}
+
+.workspace-intro p,
+.library-hero p {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--color-ink-soft);
+}
+
+.workspace-date {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.board-workbench__header h2 {
+  font-size: var(--text-title);
+  line-height: 1.08;
+}
+
+.board-workbench__header p {
+  font-size: var(--text-body);
+  line-height: 1.55;
+  color: var(--color-ink-soft);
+}
+
+.panel-heading h2,
+.library-results h2,
+.question-editor h2,
+.editor-preview h2 {
+  font-size: var(--text-section);
+  letter-spacing: -0.02em;
+}
+
+.library-card__body h3 {
+  font-size: var(--text-md);
+  line-height: 1.25;
+}
+
+.library-card__body p {
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+.game-list-item__copy strong {
+  font-size: var(--text-sm);
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Buttons: unified interaction feedback ---------- */
+.button,
+.google-oauth-button,
+.icon-button,
+.mobile-menu-button,
+.active-filters__chip {
+  transition: background-color var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+
+.button:focus-visible,
+.google-oauth-button:focus-visible,
+.icon-button:focus-visible,
+.mobile-menu-button:focus-visible,
+.active-filters__chip:focus-visible,
+.segmented-control button:focus-visible,
+.filter-dropdown__trigger:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+/* All interactive controls lift on hover, press on click */
+@media (hover: hover) and (pointer: fine) {
+  .button:hover,
+  .google-oauth-button:hover,
+  .icon-button:hover,
+  .mobile-menu-button:hover,
+  .text-button:hover,
+  .active-filters__chip:hover,
+  .filter-dropdown__trigger:hover {
+    transform: translateY(-2px);
+  }
+
+  .button--quiet:hover,
+  .icon-button:hover,
+  .mobile-menu-button:hover,
+  .text-button:hover {
+    background: var(--color-paper-3);
+  }
+
+  .button--outline:hover {
+    background: var(--color-indigo-soft);
+  }
+
+  .filter-dropdown__trigger:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.button:active,
+.google-oauth-button:active,
+.icon-button:active,
+.mobile-menu-button:active,
+.active-filters__chip:active,
+.filter-dropdown__trigger:active {
+  transform: translateY(1px);
+}
+
+/* ---------- Cards & panels: consistent depth and rhythm ---------- */
+.game-library-panel,
+.session-panel,
+.board-workbench,
+.library-card,
+.question-editor,
+.editor-preview,
+.settings-editor,
+.tile-editor {
+  transition: transform var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+
+.library-card {
+  border: 2px solid var(--color-rule-strong);
+  border-block-end-width: 5px;
+  box-shadow: var(--shadow-contact);
+}
+
+.library-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-raised);
+}
+
+.game-list-item {
+  transition: background-color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out),
+    border-color var(--dur-short) var(--ease-out);
+}
+
+/* ---------- Library tools: tighter, aligned rhythm ---------- */
+.library-tools {
+  gap: var(--space-md);
+  align-items: end;
+}
+
+.search-field {
+  min-height: 3.25rem;
+  border-radius: var(--radius-md);
+}
+
+.search-field input {
+  font-size: var(--text-body);
+}
+
+.filter-dropdown__trigger {
+  min-height: 3.25rem;
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Section heads: consistent spacing ---------- */
+.library-results__head {
+  align-items: baseline;
+  margin-block-end: var(--space-md);
+}
+
+.library-results__head h2 {
+  font-size: var(--text-section);
+}
+
+/* ---------- Status badge: consistent chip feel ---------- */
+.status-badge {
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Mobile: keep actions tappable and aligned ---------- */
+@media (max-width: 39.99rem) {
+  .workspace-intro__actions {
+    width: 100%;
+  }
+
+  .workspace-intro__actions .button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .library-card__actions .button {
+    min-height: 2.75rem;
+  }
+}
+
+/* ============================================================
+ * Home join — Kahoot-style code entry landing page.
+ * Preserves the Classroom Adventure Table theme.
+ * ============================================================ */
+.home-join {
+  min-height: 100dvh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    radial-gradient(24rem 24rem at 85% 12%, var(--color-amber-soft), transparent 60%),
+    radial-gradient(20rem 20rem at 8% 88%, var(--color-teal-soft), transparent 60%),
+    var(--color-paper);
+}
+
+.home-join__brand {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-inline: var(--space-md);
+  border-block-end: 3px solid var(--color-rule-strong);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-contact);
+}
+
+.home-join__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-indigo-deep);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-decoration: none;
+}
+
+.home-join__logo-glyph {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-amber);
+  box-shadow: var(--shadow-contact);
+}
+
+.home-join__teacher-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding-inline: var(--space-sm);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  text-decoration: none;
+  box-shadow: var(--shadow-contact);
+  transition: background-color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+
+.home-join__teacher-link svg {
+  width: 1rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-join__teacher-link:hover {
+    background: var(--color-indigo-soft);
+    transform: translateY(-1px);
+  }
+}
+
+.home-join__stage {
+  display: grid;
+  width: min(100%, 72rem);
+  margin-inline: auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--space-2xl) var(--space-md);
+}
+
+.home-join__hero {
+  text-align: center;
+}
+
+.home-join__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-indigo-deep);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  box-shadow: var(--shadow-contact);
+}
+
+.home-join__eyebrow svg {
+  width: 1rem;
+}
+
+.home-join__hero h1 {
+  margin-block: var(--space-md) var(--space-sm);
+  font-size: clamp(2.4rem, 7vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  color: var(--color-indigo-deep);
+}
+
+.home-join__hero p {
+  color: var(--color-ink-soft);
+  font-size: var(--text-base);
+  line-height: 1.6;
+}
+
+.home-join__panel {
+  position: relative;
+  width: min(100%, 30rem);
+  justify-self: center;
+  padding: var(--space-xl) var(--space-lg);
+  border: 3px solid var(--color-rule-strong);
+  border-block-end-width: 8px;
+  border-radius: calc(var(--radius-card) * 1.5);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-board);
+  text-align: center;
+}
+
+.home-join__panel-mark {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto var(--space-md);
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-coral);
+  color: var(--color-accent-ink);
+  box-shadow: var(--shadow-toy);
+  transform: rotate(-6deg);
+}
+
+.home-join__panel-mark svg {
+  width: 1.6rem;
+}
+
+.home-join__form {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.home-join__code-field {
+  display: block;
+}
+
+.home-join__code-input {
+  width: 100%;
+  min-height: 5rem;
+  padding-inline: var(--space-sm);
+  border: 3px solid var(--color-rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-outlier);
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-align: center;
+  text-transform: uppercase;
+  caret-color: var(--color-indigo-deep);
+  transition: border-color var(--dur-short) var(--ease-out), box-shadow var(--dur-short) var(--ease-out);
+}
+
+.home-join__code-input::placeholder {
+  color: var(--color-muted);
+  opacity: 0.4;
+}
+
+.home-join__code-input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.home-join__code-input.is-complete {
+  border-color: var(--color-success);
+  box-shadow: var(--shadow-contact);
+}
+
+.home-join__code-input.is-missing {
+  border-color: var(--color-error);
+  background: var(--color-error-soft);
+  animation: home-join-shake var(--dur-short) var(--ease-out);
+}
+
+@keyframes home-join-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.home-join__status {
+  min-height: 1.5em;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.home-join__status-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-inline-end: var(--space-2xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+  vertical-align: baseline;
+  animation: home-join-pulse 1s var(--ease-in-out) infinite;
+}
+
+.home-join__status-dot.is-loading {
+  background: var(--color-amber);
+}
+
+@keyframes home-join-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.home-join__nickname {
+  display: grid;
+  gap: var(--space-2xs);
+  text-align: start;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.home-join__nickname input {
+  width: 100%;
+  min-height: 3rem;
+  padding-inline: var(--space-sm);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  font-weight: 450;
+}
+
+.home-join__error {
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.home-join__submit {
+  display: inline-flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding-inline: var(--space-md);
+  border: 2px solid var(--color-rule-strong);
+  border-block-end-width: 5px;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--color-inverse);
+  font-size: var(--text-md);
+  font-weight: 800;
+  box-shadow: var(--shadow-contact);
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out);
+}
+
+.home-join__submit svg {
+  width: 1.2rem;
+}
+
+.home-join__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-join__submit:hover:not(:disabled) {
+    background: var(--color-indigo-deep);
+    transform: translateY(-2px);
+  }
+}
+
+.home-join__submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+@media (min-width: 48rem) {
+  .home-join__stage {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: var(--space-xl);
+  }
+
+  .home-join__hero {
+    text-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-join__code-input.is-missing {
+    animation: none;
+  }
+}
+
+/* ============================================================
+ * Session panel polish — tighter rhythm, aligned summary.
+ * ============================================================ */
+.session-panel {
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.session-panel .panel-heading {
+  margin-block-end: var(--space-2xs);
+}
+
+.session-summary {
+  padding-block: var(--space-sm);
+  border-block: 1px dashed var(--color-rule);
+}
+
+.session-summary__time {
+  font-size: var(--text-lg);
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  color: var(--color-indigo-deep);
+}
+
+.session-summary > strong {
+  font-size: var(--text-md);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.session-summary > span:last-child {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.session-timeline {
+  gap: var(--space-sm);
+}
+
+.session-timeline li {
+  gap: var(--space-sm);
+  min-height: 2.5rem;
+}
+
+.session-timeline li > svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: var(--space-2xs);
+  border: 1px solid var(--color-rule-strong);
+}
+
+.session-timeline span {
+  gap: var(--space-3xs);
+}
+
+.session-timeline strong {
+  font-size: var(--text-sm);
+}
+
+.session-timeline small,
+.panel-note {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.panel-note {
+  margin: 0;
+  padding-block-start: var(--space-sm);
+  border-block-start: 1px dashed var(--color-rule);
+}
+
+.session-panel .button--ink {
+  width: 100%;
+}
+
+/* ============================================================
+ * Home join — fit exactly to viewport height, no scroll.
+ * ============================================================ */
+.home-join {
+  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.home-join__stage {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: center;
+}
+
+.home-join__hero h1 {
+  font-size: clamp(2rem, 6vw, 3.6rem);
+}
+
+.home-join__hero p {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.home-join__panel {
+  padding: var(--space-lg) var(--space-md);
+}
+
+.home-join__code-input {
+  min-height: 4.25rem;
+  font-size: clamp(1.8rem, 7vw, 2.6rem);
+}
+
+.home-join__submit {
+  min-height: 3.25rem;
+  font-size: var(--text-md);
+}
+
+/* Mobile — fit stage content without internal scroll */
+@media (max-width: 47.99rem) {
+  .home-join__stage {
+    gap: var(--space-md);
+    padding-block: var(--space-lg);
+  }
+
+  .home-join__hero h1 {
+    margin-block: var(--space-sm) var(--space-xs);
+    font-size: clamp(1.7rem, 7vw, 2.2rem);
+  }
+
+  .home-join__hero p {
+    font-size: var(--text-xs);
+  }
+
+  .home-join__panel {
+    padding: var(--space-md);
+  }
+
+  .home-join__panel-mark {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-block-end: var(--space-sm);
+  }
+
+  .home-join__code-input {
+    min-height: 3.75rem;
+    font-size: clamp(1.6rem, 6.5vw, 2.2rem);
+    letter-spacing: 0.22em;
+  }
+
+  .home-join__submit {
+    min-height: 3rem;
+    font-size: var(--text-sm);
+  }
+}
+
+/* Extra-small screens — fit everything without any scroll */
+@media (max-width: 25rem) {
+  .home-join__stage {
+    gap: var(--space-sm);
+    padding-block: var(--space-md);
+  }
+
+  .home-join__hero h1 {
+    font-size: 1.55rem;
+  }
+
+  .home-join__hero p {
+    line-height: 1.4;
+  }
+
+  .home-join__panel {
+    padding: var(--space-sm);
+    border-block-end-width: 6px;
+  }
+
+  .home-join__code-input {
+    min-height: 3.25rem;
+    font-size: 1.45rem;
+    letter-spacing: 0.18em;
+  }
+
+  .home-join__submit {
+    min-height: 2.75rem;
+  }
+}
+
+/* Tighten 320px stage — remove last 24px of overflow */
+@media (max-width: 25rem) and (max-height: 40rem) {
+  .home-join__stage {
+    padding-block: var(--space-sm);
+  }
+
+  .home-join__hero h1 {
+    margin-block: var(--space-2xs) var(--space-2xs);
+  }
+
+  .home-join__panel-mark {
+    display: none;
+  }
+}
+
+/* Low-height desktop — keep stage from overflowing */
+@media (min-width: 48rem) and (max-height: 41rem) {
+  .home-join__stage {
+    gap: var(--space-md);
+    padding-block: var(--space-md);
+  }
+
+  .home-join__hero h1 {
+    margin-block: var(--space-sm) var(--space-xs);
+  }
+
+  .home-join__hero p {
+    line-height: 1.4;
+  }
+
+  .home-join__panel {
+    padding: var(--space-md);
+  }
+}
+
+/* ============================================================
+ * Player view — students see only the game, no editor/menu.
+ * ============================================================ */
+.player-view {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background:
+    radial-gradient(22rem 22rem at 88% 8%, var(--color-amber-soft), transparent 60%),
+    var(--color-paper);
+}
+
+.player-view__bar {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-inline: var(--space-md);
+  border-block-end: 3px solid var(--color-rule-strong);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-contact);
+}
+
+.player-view__bar-left {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.player-view__logo {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-amber);
+  color: var(--color-accent-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  box-shadow: var(--shadow-contact);
+}
+
+.player-view__bar-left strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.player-view__code {
+  flex: 0 0 auto;
+  padding: var(--space-2xs) var(--space-sm);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo-deep);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.player-view__board {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 72rem);
+  align-self: center;
+  justify-self: center;
+  padding: var(--space-md);
+}
+
+.player-view__board .game-board {
+  box-shadow: var(--shadow-board);
+}
+
+/* ============================================================
+ * Host controls — teacher-only: participant roster + start/stop.
+ * ============================================================ */
+.host-roster {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-block-start: var(--space-sm);
+  padding-block-start: var(--space-sm);
+  border-block-start: 1px dashed var(--color-rule);
+}
+
+.host-roster__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  color: var(--color-ink-soft);
+}
+
+.host-roster__head span:last-child {
+  font-weight: 650;
+  color: var(--color-muted);
+}
+
+.host-roster__list {
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.host-roster__player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 2.25rem;
+  padding-inline: var(--space-xs);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+}
+
+.host-roster__player.is-host {
+  border-color: var(--color-amber);
+  background: var(--color-amber-soft);
+  font-weight: 800;
+}
+
+.host-roster__player.is-offline {
+  opacity: 0.5;
+}
+
+.host-roster__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+}
+
+.host-roster__player.is-offline .host-roster__dot {
+  background: var(--color-muted);
+}
+
+.host-roster__player span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-roster__player em {
+  font-style: normal;
+  font-weight: 750;
+  color: var(--color-indigo-deep);
+}
+
+.host-roster__player.is-host em {
+  color: var(--color-accent-ink);
+}
+
+/* ============================================================
+ * Player view — roster (nicknames) + self badge.
+ * Students see the game board and the participant list.
+ * ============================================================ */
+.player-view__layout {
+  display: grid;
+  gap: var(--space-md);
+  width: min(100%, 76rem);
+  align-self: center;
+  justify-self: center;
+  padding: var(--space-md);
+}
+
+.player-view__bar {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-inline: var(--space-md);
+  border-block-end: 3px solid var(--color-rule-strong);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-contact);
+}
+
+.player-view__bar-left {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.player-view__me {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 2.25rem;
+  padding-inline: var(--space-xs);
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-indigo-soft);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  box-shadow: var(--shadow-contact);
+}
+
+.player-view__me-avatar {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.player-view__me-score {
+  color: var(--color-indigo-deep);
+}
+
+/* Roster panel — Kahoot-style participant list */
+.player-roster {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-contact);
+  overflow: hidden;
+}
+
+.player-roster__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-block-end: 2px solid var(--color-rule-strong);
+  background: var(--color-ink);
+  color: var(--color-inverse);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.player-roster__list {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-xs);
+  overflow-y: auto;
+}
+
+.player-roster__player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 2.25rem;
+  padding-inline: var(--space-xs);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  font-size: var(--text-xs);
+}
+
+.player-roster__player.is-me {
+  border-color: var(--color-indigo);
+  background: var(--color-indigo-soft);
+}
+
+.player-roster__player.is-host {
+  border-color: var(--color-amber);
+  background: var(--color-amber-soft);
+}
+
+.player-roster__player.is-offline {
+  opacity: 0.5;
+}
+
+.player-roster__avatar {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.player-roster__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.player-roster__name em {
+  margin-inline-start: var(--space-2xs);
+  padding: 1px var(--space-2xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-inverse);
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.player-roster__name em:has(+ em) {
+  margin-inline-start: 0;
+}
+
+.player-roster__score {
+  flex: 0 0 auto;
+  color: var(--color-indigo-deep);
+  font-family: var(--font-outlier);
+  font-weight: 750;
+}
+
+.player-roster__empty {
+  padding: var(--space-sm);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+/* Desktop: board left, roster right */
+@media (min-width: 56rem) {
+  .player-view__layout {
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    align-items: start;
+  }
+
+  .player-roster {
+    position: sticky;
+    top: var(--space-md);
+    max-height: min(60dvh, 26rem);
+  }
+}
+
+@media (max-width: 25rem) {
+  .player-view__bar {
+    gap: var(--space-2xs);
+    padding-inline: var(--space-xs);
+  }
+
+  .player-view__me-name {
+    max-width: 4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ============================================================
+ * Empty workspace — teacher has no games yet.
+ * ============================================================ */
+.workspace-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-xs);
+  align-content: center;
+  min-height: 100%;
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.workspace-empty__mark {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  border: 3px solid var(--color-rule-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-amber-soft);
+  color: var(--color-accent-ink);
+  box-shadow: var(--shadow-contact);
+}
+
+.workspace-empty__mark svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.workspace-empty h1 {
+  font-size: var(--text-title);
+  font-weight: 850;
+}
+
+.workspace-empty p {
+  max-width: 34rem;
+  color: var(--color-ink-soft);
+  font-size: var(--text-body);
+  line-height: 1.6;
 }

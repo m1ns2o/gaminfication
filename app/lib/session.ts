@@ -1,7 +1,7 @@
 import { and, eq, gt, lte } from "drizzle-orm";
 import { getDb } from "../../db";
 import { teacherAccounts, teacherSessions } from "../../db/schema";
-export { normalizeTeacherEmail, validAuthOrigin, validTeacherEmail } from "./auth-utils";
+export { normalizeTeacherEmail, validAuthOrigin, validTeacherEmail } from "./auth-validation";
 
 export const TEACHER_SESSION_COOKIE = "classloop_teacher_session";
 export const TEACHER_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;

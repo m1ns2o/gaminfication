@@ -11,12 +11,16 @@ export function validTeacherEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
-export function safeAuthReturnTo(value: string | null | undefined) {
+export function safeAuthReturnTo(
+  value: string | null | undefined,
+  options: { reserved?: string[]; baseOrigin?: string } = {},
+) {
   if (!value?.startsWith("/") || value.startsWith("//")) return "/";
+  const { reserved = ["/api/v1/auth/", "/login"], baseOrigin = "https://classloop.local" } = options;
   try {
-    const url = new URL(value, "https://classloop.local");
-    if (url.origin !== "https://classloop.local") return "/";
-    if (url.pathname.startsWith("/api/v1/auth/") || url.pathname === "/login") return "/";
+    const url = new URL(value, baseOrigin);
+    if (url.origin !== baseOrigin) return "/";
+    if (reserved.some((path) => path === url.pathname || url.pathname.startsWith(path))) return "/";
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return "/";

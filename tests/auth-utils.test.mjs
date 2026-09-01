@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeTeacherEmail, safeAuthReturnTo, validAuthOrigin, validTeacherEmail } from "../app/lib/auth-utils.ts";
+import { normalizeTeacherEmail, safeAuthReturnTo, validAuthOrigin, validTeacherEmail } from "../app/lib/auth-validation.ts";
 
 test("normalizes and validates teacher email addresses", () => {
   assert.equal(normalizeTeacherEmail("  ＴＥＡＣＨＥＲ@Example.COM  "), "teacher@example.com");

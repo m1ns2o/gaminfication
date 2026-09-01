@@ -1,5 +1,5 @@
-import { createTeacherSession, teacherSessionCookie } from "../../../../../lib/teacher-auth";
-import { clearGoogleOAuthCookie, finishGoogleOAuth, GoogleOAuthError } from "../../../../../lib/google-oauth";
+import { createTeacherSession, teacherSessionCookie } from "../../../../../lib/session";
+import { clearGoogleOAuthCookie, finishGoogleOAuth, GoogleOAuthError } from "../../../../../lib/oauth/google";
 
 function loginFailure(request: Request, code: string) {
   const loginUrl = new URL("/login", request.url);

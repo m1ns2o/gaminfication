@@ -35,15 +35,15 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { GameBoard, type BoardMovement } from "./game-board";
+import { toDataURL as qrToDataURL } from "qrcode";
+import { boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
+import { GameBoard } from "./game-board";
 import { ContentEditor } from "./content-editor";
-import { PreviewTileAction, type PreviewArrivalType } from "./preview-tile-action";
 import { RoomPrompt } from "./room-prompt";
 import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
 import { TileEditor } from "./tile-editor";
-import { advanceBoardPosition, boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
 import { useGameRoom } from "../lib/use-game-room";
 
 type View = "dashboard" | "library" | "editor";
@@ -98,6 +98,9 @@ type ApiGame = {
   teamCount: number;
 };
 
+// /api/v1/library가 반환하는 공유마당 게임 (발행된 게임 중 일부 필드만)
+type LibraryGame = Pick<Game, "id" | "title" | "description" | "subject" | "grade" | "template" | "skin" | "updated" | "questions" | "cards">;
+
 function fromApiGame(game: ApiGame): Game {
   let tileTypes: TileType[] = [...defaultTileTypes];
   try {
@@ -128,95 +131,6 @@ function fromApiGame(game: ApiGame): Game {
   };
 }
 
-const initialGames: Game[] = [
-  {
-    id: "game-history-01",
-    title: "조선 후기, 변화의 길",
-    description: "영조와 정조부터 개항 전까지 핵심 흐름을 복습합니다.",
-    subject: "사회",
-    grade: "초등 6",
-    template: "LOOP_24",
-    skin: "CAMPUS",
-    status: "DRAFT",
-    visibility: "PRIVATE",
-    updated: "오늘 16:42",
-    questions: 18,
-    cards: 8,
-  },
-  {
-    id: "game-science-02",
-    title: "태양계 탐사 작전",
-    description: "행성과 위성의 특징을 팀전으로 정리하는 수업 게임입니다.",
-    subject: "과학",
-    grade: "초등 5",
-    template: "LOOP_24",
-    skin: "SPACE_LAB",
-    status: "PUBLISHED",
-    visibility: "PUBLIC",
-    updated: "8월 26일",
-    questions: 24,
-    cards: 10,
-  },
-  {
-    id: "game-language-03",
-    title: "우리말 문장 구조 레이스",
-    description: "문장 성분을 찾으며 결승점까지 이동하는 개인전입니다.",
-    subject: "국어",
-    grade: "중등 1",
-    template: "RACE_24",
-    skin: "ECO_EXPEDITION",
-    status: "PENDING_REVIEW",
-    visibility: "PUBLIC",
-    updated: "8월 24일",
-    questions: 20,
-    cards: 6,
-  },
-];
-
-const libraryGames: Game[] = [
-  {
-    id: "lib-math-01",
-    title: "분수 왕국의 수상한 지도",
-    description: "분수의 크기 비교와 덧셈을 24칸 순환형 보드에서 연습합니다.",
-    subject: "수학",
-    grade: "초등 4",
-    template: "LOOP_24",
-    skin: "CAMPUS",
-    status: "PUBLISHED",
-    visibility: "PUBLIC",
-    updated: "8월 27일",
-    questions: 22,
-    cards: 8,
-  },
-  {
-    id: "lib-science-02",
-    title: "생태계 연결 고리",
-    description: "먹이 사슬과 생태계 평형을 팀별 토론으로 풀어갑니다.",
-    subject: "과학",
-    grade: "초등 6",
-    template: "RACE_24",
-    skin: "ECO_EXPEDITION",
-    status: "PUBLISHED",
-    visibility: "PUBLIC",
-    updated: "8월 25일",
-    questions: 19,
-    cards: 12,
-  },
-  {
-    id: "lib-english-03",
-    title: "Daily English Mission",
-    description: "교실 표현과 일상 회화를 빠르게 확인하는 전원 동시 퀴즈입니다.",
-    subject: "영어",
-    grade: "중등 1",
-    template: "LOOP_24",
-    skin: "SPACE_LAB",
-    status: "PUBLISHED",
-    visibility: "PUBLIC",
-    updated: "8월 22일",
-    questions: 24,
-    cards: 9,
-  },
-];
 
 type FilterOptionGroup = {
   group: string;
@@ -312,18 +226,6 @@ const subjectsByStage: Record<string, string[]> = {
   중등: ["국어", "수학", "영어", "사회", "과학", "미술", "음악", "체육", "정보", "기술·가정"],
   고등: ["국어", "수학", "영어", "한국사", "사회", "과학", "미술", "음악", "체육", "정보", "기술·가정"],
 };
-
-// 학년 필터에서 학교급(초등/중등/고등)을 추출. "전체"면 전체 과목.
-function activeStage(gradeFilterValue: string): string | null {
-  if (gradeFilterValue === "전체") return null;
-  return gradeFilterValue.startsWith("초등") ? "초등" : gradeFilterValue.startsWith("중등") ? "중등" : gradeFilterValue.startsWith("고등") ? "고등" : null;
-}
-
-function matchesGradeFilter(grade: string, filter: string) {
-  if (filter === "전체") return true;
-  if (filter.endsWith(" 전체")) return grade.startsWith(filter.slice(0, -3));
-  return grade === filter;
-}
 
 type FilterDropdownProps = {
   label: string;
@@ -433,21 +335,44 @@ function FilterDropdown({ label, icon: Icon, value, options, onSelect, align = "
   );
 }
 
-const sampleTokens = [
-  { id: "t1", label: "김하늘 팀", position: 8, symbol: "book" as const, active: true },
-  { id: "t2", label: "박지우 팀", position: 5, symbol: "bulb" as const },
-  { id: "t3", label: "이서준 팀", position: 5, symbol: "compass" as const },
-  { id: "t4", label: "최다은 팀", position: 5, symbol: "leaf" as const },
-  { id: "t5", label: "정민호 팀", position: 5, symbol: "rocket" as const },
-  { id: "t6", label: "오예린 팀", position: 5, symbol: "book" as const },
-];
-
 function statusText(status: GameStatus) {
   return {
     DRAFT: "초안",
     PUBLISHED: "발행됨",
     PENDING_REVIEW: "심사 중",
   }[status];
+}
+
+// 수업 방 참가용 QR 코드 — 스캔하면 참가 페이지(?code=…)로 이동합니다.
+function RoomQrCode({ roomCode }: { roomCode: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    const url = `${window.location.origin}/?code=${roomCode}`;
+    let cancelled = false;
+    void qrToDataURL(url, {
+      width: 240,
+      margin: 2,
+      color: { dark: "#23274f", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    })
+      .then((urlValue) => { if (!cancelled) setDataUrl(urlValue); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [roomCode]);
+
+  return (
+    <div className="qr-mark" aria-label="방 참가 QR 코드">
+      {dataUrl ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- QR 코드는 data URL이라 next/image 최적화 불가 */
+        <img src={dataUrl} alt={`방 참가 QR 코드 (${roomCode})`} width={240} height={240} />
+      ) : (
+        <span className="qr-mark__placeholder" aria-hidden="true">QR</span>
+      )}
+      <p className="qr-mark__hint">스캔하면 바로 입장할 수 있어요</p>
+    </div>
+  );
 }
 
 function DialogShell({
@@ -512,6 +437,121 @@ function GameListItem({
         {game.visibility === "PUBLIC" ? <Globe2 aria-hidden="true" /> : game.visibility === "UNLISTED" ? <Link2 aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}
       </span>
     </button>
+  );
+}
+
+type PlayerViewProps = {
+  realtime: ReturnType<typeof useGameRoom>;
+  gameTitle: string;
+};
+
+// 학생(참가자) 전용 화면 — 게임에 필요한 부분만 표시하고 편집·관리 UI는 숨김
+function PlayerView({ realtime, gameTitle }: PlayerViewProps) {
+  const { roomState, participantId, canRoll, canAnswer, roomCode } = realtime;
+  const [boardAnimating, setBoardAnimating] = useState(false);
+  const me = roomState?.players.find((player) => player.id === participantId);
+  const tokens = roomState?.players.map((player) => ({
+    id: player.id,
+    label: player.nickname,
+    position: player.position,
+    symbol: player.symbol,
+    active: player.id === roomState.currentPlayerId,
+  })) ?? [];
+  const currentTurnLabel = roomState?.players.find((player) => player.id === roomState?.currentPlayerId)?.nickname
+    ?? (roomState?.status === "FINALIZED" ? "게임 종료" : "대기 중");
+  const eventLabel = roomState?.status === "FINALIZED"
+    ? "최종 결과를 확인하세요"
+    : roomState?.activeQuestion
+      ? "퀴즈에 답할 차례"
+      : roomState?.activeCard
+        ? `카드 · ${roomState.activeCard.title}`
+        : roomState?.lastAnswer
+          ? roomState.lastAnswer.correct ? `정답 · +${roomState.lastAnswer.pointsAwarded}점` : "정답을 확인해 보세요"
+          : roomState?.lastGroupResult
+            ? `전원 결과 · ${roomState.lastGroupResult.correctCount}/${roomState.lastGroupResult.totalCount}명 정답`
+            : roomState?.status === "LOBBY"
+              ? "선생님이 게임을 시작할 때까지 기다려 주세요"
+              : "퀴즈와 카드로 학습하기";
+
+  return (
+    <main className="player-view">
+      <header className="player-view__bar">
+        <div className="player-view__bar-left">
+          <span className="player-view__logo" aria-hidden="true">C</span>
+          <strong>{gameTitle}</strong>
+        </div>
+        {roomCode && <span className="player-view__code">방 코드 {roomCode.slice(0, 3)} {roomCode.slice(3)}</span>}
+        {me && (
+          <span className="player-view__me">
+            <span className="player-view__me-avatar" aria-hidden="true">{me.symbol}</span>
+            <span className="player-view__me-name">{me.nickname}</span>
+            <span className="player-view__me-score">{me.score}점</span>
+          </span>
+        )}
+      </header>
+
+      <div className="player-view__layout">
+        <div className="player-view__board">
+          <GameBoard
+            geometryId={roomState?.template ?? "LOOP_24"}
+            skinId={roomState?.skin ?? "CAMPUS"}
+            tokens={tokens}
+            round={roomState?.round ?? 1}
+            lastRoll={roomState?.lastRoll ?? 1}
+            onRoll={canRoll ? () => realtime.roll() : undefined}
+            currentTurnLabel={currentTurnLabel}
+            eventLabel={eventLabel}
+            tileTypes={roomState?.tileTypes}
+            movement={roomState?.lastEvent?.from !== undefined ? {
+              key: roomState?.version ?? 0,
+              actorId: roomState.lastEvent.actorId,
+              from: roomState.lastEvent.from,
+              rollTo: roomState.lastEvent.to,
+              cardDirection: roomState?.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
+            } : undefined}
+            onAnimationStateChange={setBoardAnimating}
+          />
+
+          {roomState && roomState.status !== "LOBBY" && !boardAnimating && (
+            <div className="play-stage__overlay">
+              <RoomPrompt
+                key={roomState.activeQuestion?.id ?? roomState.lastEvent.type}
+                state={roomState}
+                canAnswer={canAnswer}
+                onAnswer={realtime.answer}
+                viewerId={participantId}
+              />
+            </div>
+          )}
+        </div>
+
+        <aside className="player-roster" aria-label="참가자 목록">
+          <div className="player-roster__head">
+            <span>참가자</span>
+            <span>{roomState?.players.length ?? 0}명</span>
+          </div>
+          <ul className="player-roster__list">
+            {roomState?.players.map((player) => (
+              <li
+                key={player.id}
+                className={`player-roster__player${player.id === participantId ? " is-me" : ""}${player.role === "HOST" ? " is-host" : ""}${player.connected ? "" : " is-offline"}`}
+              >
+                <span className="player-roster__avatar" aria-hidden="true">{player.symbol}</span>
+                <span className="player-roster__name">
+                  {player.nickname}
+                  {player.id === participantId && <em>나</em>}
+                  {player.role === "HOST" && <em>교사</em>}
+                </span>
+                <span className="player-roster__score">{player.score}점</span>
+              </li>
+            ))}
+            {(!roomState || roomState.players.length === 0) && (
+              <li className="player-roster__empty">대기 중인 참가자가 없습니다.</li>
+            )}
+          </ul>
+        </aside>
+      </div>
+    </main>
   );
 }
 
@@ -586,14 +626,11 @@ function HeaderNav({
 export function StudioApp({ auth }: { auth: StudioAuth }) {
   const realtime = useGameRoom();
   const [view, setView] = useState<View>("dashboard");
-  const [games, setGames] = useState(initialGames);
+  const [games, setGames] = useState<Game[]>([]);
   const [persistedGameIds, setPersistedGameIds] = useState<Set<string>>(() => new Set());
-  const [selectedId, setSelectedId] = useState(initialGames[0].id);
-  const [geometry, setGeometry] = useState<BoardGeometryId>(initialGames[0].template);
-  const [skin, setSkin] = useState<SkinId>(initialGames[0].skin);
-  const [tokens, setTokens] = useState(sampleTokens);
-  const [lastRoll, setLastRoll] = useState(4);
-  const [round, setRound] = useState(3);
+  const [selectedId, setSelectedId] = useState("");
+  const [geometry, setGeometry] = useState<BoardGeometryId>("LOOP_24");
+  const [skin, setSkin] = useState<SkinId>("CAMPUS");
   const [createOpen, setCreateOpen] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -604,45 +641,21 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("전체");
   const [subjectFilter, setSubjectFilter] = useState("전체");
-  const [liveMessage, setLiveMessage] = useState("조선 후기, 변화의 길 초안을 불러왔습니다.");
+  const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [liveMessage, setLiveMessage] = useState("");
   const [editorSection, setEditorSection] = useState<EditorSection>("questions");
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const [boardAnimating, setBoardAnimating] = useState(false);
-  const [previewArrival, setPreviewArrival] = useState<{ id: number; type: PreviewArrivalType } | null>(null);
-  const [localMovement, setLocalMovement] = useState<BoardMovement | undefined>(undefined);
   const clientIdSequence = useRef(1);
-  const localMovementSequence = useRef(1);
 
-  const selectedGame = games.find((game) => game.id === selectedId) ?? games[0];
+  const selectedGame = games.find((game) => game.id === selectedId) ?? games[0] ?? null;
+  // 현재 사용자가 참가자(학생)면 게임 전용 화면으로 전환
+  const isPlayer = realtime.roomState?.players.some((player) => player.id === realtime.participantId && player.role === "PLAYER") ?? false;
   const hasLibraryFilter = gradeFilter !== "전체" || subjectFilter !== "전체" || search.trim() !== "";
-  const filteredLibrary = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-    return libraryGames.filter((game) => {
-      const matchesKeyword = !keyword || `${game.title} ${game.description} ${game.subject} ${game.grade}`.toLowerCase().includes(keyword);
-      const matchesGrade = matchesGradeFilter(game.grade, gradeFilter);
-      const matchesSubject = subjectFilter === "전체" || game.subject === subjectFilter;
-      return matchesKeyword && matchesGrade && matchesSubject;
-    });
-  }, [search, gradeFilter, subjectFilter]);
-
-  const liveTokens = realtime.roomState
-    ? realtime.roomState.players.map((player) => ({
-        id: player.id,
-        label: player.nickname,
-        position: player.position,
-        symbol: player.symbol,
-        active: player.id === realtime.roomState?.currentPlayerId,
-      }))
-    : tokens;
-  const liveGeometry = realtime.roomState?.template ?? geometry;
-  const liveSkin = realtime.roomState?.skin ?? skin;
-  const liveTileTypes = realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes;
-  const liveRound = realtime.roomState?.round ?? round;
-  const liveLastRoll = realtime.roomState?.lastRoll ?? lastRoll;
-  const localCanRoll = boardGeometries[liveGeometry].wraps || tokens.some((token) => token.active && token.position < 23);
   const currentTurnLabel = realtime.roomState?.players.find(
     (player) => player.id === realtime.roomState?.currentPlayerId,
-  )?.nickname ?? (realtime.roomState?.status === "FINALIZED" ? "게임 종료" : "김하늘 팀");
+  )?.nickname ?? (realtime.roomState?.status === "FINALIZED" ? "게임 종료" : "대기 중");
   const boardEventLabel = realtime.roomState?.status === "FINALIZED"
     ? "최종 결과를 확인하세요"
     : realtime.roomState?.activeQuestion
@@ -675,6 +688,19 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     return () => { cancelled = true; };
   }, []);
 
+  // 공유마당은 서버(/api/v1/library)에서 조회한 발행 게임만 보여줍니다.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/v1/library")
+      .then(async (response) => {
+        const payload = await response.json() as { games?: LibraryGame[] };
+        if (!cancelled) setLibraryGames(payload.games ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setLibraryLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     const normalizedCode = joinCode.replace(/\D/g, "");
     if (!joinOpen || normalizedCode.length !== 6) return;
@@ -700,16 +726,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   }, [joinCode, joinOpen]);
 
   const lastRoomEvent = realtime.roomState?.lastEvent;
-  const boardMovement: BoardMovement | undefined = realtime.roomState
-    ? lastRoomEvent?.from !== undefined ? {
-        key: realtime.roomState.version,
-        actorId: lastRoomEvent.actorId,
-        from: lastRoomEvent.from,
-        rollTo: lastRoomEvent.to,
-        cardDirection: realtime.roomState.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
-      }
-      : undefined
-    : localMovement;
   const roomEventActor = realtime.roomState?.players.find((player) => player.id === lastRoomEvent?.actorId);
   const announcedMessage = realtime.error
     ?? (lastRoomEvent?.type === "GAME_FINISHED"
@@ -740,6 +756,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   }
 
   function updateContentCounts(questions: number, cards: number) {
+    if (!selectedGame) return;
     setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, questions, cards } : game));
   }
 
@@ -750,6 +767,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   }
 
   function updateTileTypes(tileTypes: TileType[]) {
+    if (!selectedGame) return;
     setGames((current) => current.map((game) => game.id === selectedGame.id ? { ...game, tileTypes } : game));
   }
 
@@ -757,25 +775,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     setSearch("");
     setGradeFilter("전체");
     setSubjectFilter("전체");
-  }
-
-  function rollDice() {
-    setPreviewArrival(null);
-    if (realtime.roomState) {
-      realtime.roll();
-      return;
-    }
-    const roll = Math.floor(Math.random() * 6) + 1;
-    const activeToken = tokens.find((token) => token.active);
-    if (!activeToken) return;
-    const destination = advanceBoardPosition(geometry, activeToken.position, roll);
-    const movementKey = localMovementSequence.current;
-    localMovementSequence.current += 1;
-    setLocalMovement({ key: movementKey, actorId: activeToken.id, from: activeToken.position, rollTo: destination });
-    setLastRoll(roll);
-    setTokens((current) => current.map((token) => token.id === activeToken.id ? { ...token, position: destination } : token));
-    if (boardGeometries[geometry].wraps && activeToken.position + roll >= 24) setRound((current) => current + 1);
-    setLiveMessage(`주사위 ${roll}. 김하늘 팀의 말이 ${roll}칸 이동했습니다.`);
   }
 
   async function saveGame(game: Game) {
@@ -835,25 +834,31 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     }
   }
 
-  function cloneGame(game: Game) {
+  async function cloneGame(game: LibraryGame) {
     if (!auth.user) {
       window.location.assign(auth.signInPath);
       return;
     }
-    const clientId = clientIdSequence.current;
-    clientIdSequence.current += 1;
-    const clone = {
-      ...game,
-      id: `clone-client-${clientId}`,
-      title: `${game.title} 복제본`,
-      status: "DRAFT" as const,
-      visibility: "PRIVATE" as const,
-      updated: "방금 전",
-    };
-    setGames((current) => [clone, ...current]);
-    selectGame(clone);
-    setView("dashboard");
-    setLiveMessage(`${game.title}을 내 비공개 초안으로 복제했습니다.`);
+    if (realtimeBusy || libraryLoading) return;
+    setRealtimeBusy(true);
+    try {
+      const response = await fetch(`/api/v1/games/${game.id}/clone`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const payload = await response.json() as { game?: ApiGame; error?: { message?: string } };
+      if (!response.ok || !payload.game) throw new Error(payload.error?.message ?? "게임을 복제하지 못했습니다.");
+      const saved = fromApiGame(payload.game);
+      setGames((current) => current.some((candidate) => candidate.id === saved.id) ? current : [saved, ...current]);
+      setPersistedGameIds((current) => new Set(current).add(saved.id));
+      selectGame(saved);
+      setView("dashboard");
+      setLiveMessage(`${game.title}을 내 비공개 초안으로 복제했습니다.`);
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "게임을 복제하지 못했습니다.");
+    } finally {
+      setRealtimeBusy(false);
+    }
   }
 
   function copyRoomCode() {
@@ -869,6 +874,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
       window.location.assign(auth.signInPath);
       return;
     }
+    if (!selectedGame) return;
     setRealtimeBusy(true);
     try {
       const game = await saveGame(selectedGame);
@@ -901,6 +907,10 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
   return (
     <div className="app-shell">
+      {isPlayer && realtime.roomState ? (
+        <PlayerView realtime={realtime} gameTitle={realtime.roomState.gameTitle} />
+      ) : (
+      <>
       <HeaderNav
         view={view}
         onView={setView}
@@ -913,6 +923,19 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
       {view === "dashboard" && (
         <main className="dashboard-shell">
+          {games.length === 0 ? (
+            <section className="workspace-empty reveal" aria-labelledby="empty-workspace-title">
+              <div className="workspace-empty__mark" aria-hidden="true">
+                <FilePlus2 />
+              </div>
+              <h1 id="empty-workspace-title">아직 만든 게임이 없습니다</h1>
+              <p>첫 수업 게임을 만들어 보세요. 학생들은 게임 코드로 입장하고, 같은 보드 위에서 움직입니다.</p>
+              <button className="button button--primary" type="button" onClick={openCreate}>
+                <FilePlus2 aria-hidden="true" /> 첫 게임 만들기
+              </button>
+            </section>
+          ) : (
+          <>
           <section className="workspace-intro reveal" style={{ "--i": 0 } as React.CSSProperties}>
             <div>
               <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 게임 테이블` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
@@ -962,7 +985,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
             <div className="board-controls" aria-label="보드 설정 미리보기">
               <div className="segmented-control" role="group" aria-label="맵 템플릿">
-                {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => { setGeometry(id); setPreviewArrival(null); }}>{boardGeometries[id].shortName}</button>)}
+                {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => setGeometry(id)}>{boardGeometries[id].shortName}</button>)}
               </div>
               <div className="board-display-options">
                 <label className="select-label">
@@ -977,22 +1000,29 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
             <div className="play-stage">
               <GameBoard
-                geometryId={liveGeometry}
-                skinId={liveSkin}
-                tokens={liveTokens}
-                round={liveRound}
-                lastRoll={liveLastRoll}
-                onRoll={realtime.roomState ? realtime.canRoll ? rollDice : undefined : localCanRoll ? rollDice : undefined}
+                geometryId={realtime.roomState?.template ?? selectedGame.template}
+                skinId={realtime.roomState?.skin ?? selectedGame.skin}
+                tokens={realtime.roomState ? realtime.roomState.players.map((player) => ({
+                  id: player.id,
+                  label: player.nickname,
+                  position: player.position,
+                  symbol: player.symbol,
+                  active: player.id === realtime.roomState?.currentPlayerId,
+                })) : []}
+                round={realtime.roomState?.round ?? 1}
+                lastRoll={realtime.roomState?.lastRoll ?? 1}
+                onRoll={realtime.roomState ? realtime.canRoll ? () => realtime.roll() : undefined : undefined}
                 currentTurnLabel={currentTurnLabel}
                 eventLabel={boardEventLabel}
-                tileTypes={liveTileTypes}
-                movement={boardMovement}
+                tileTypes={realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes}
+                movement={realtime.roomState && lastRoomEvent?.from !== undefined ? {
+                  key: realtime.roomState.version,
+                  actorId: lastRoomEvent.actorId,
+                  from: lastRoomEvent.from,
+                  rollTo: lastRoomEvent.to,
+                  cardDirection: realtime.roomState.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
+                } : undefined}
                 onAnimationStateChange={setBoardAnimating}
-                onMovementComplete={({ position, tileType }) => {
-                  if (realtime.roomState) return;
-                  const type: PreviewArrivalType = !boardGeometries[liveGeometry].wraps && position === 23 ? "FINISH" : tileType;
-                  setPreviewArrival({ id: localMovementSequence.current, type });
-                }}
               />
 
               {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
@@ -1007,20 +1037,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 </div>
               )}
 
-              {!realtime.roomState && previewArrival && !boardAnimating ? (
-                <div className="play-stage__overlay">
-                  <PreviewTileAction
-                    key={previewArrival.id}
-                    gameId={selectedGame.id}
-                    type={previewArrival.type}
-                    canLoadContent={persistedGameIds.has(selectedGame.id)}
-                    questionCount={selectedGame.questions}
-                    cardCount={selectedGame.cards}
-                    onEdit={(section) => { setEditorSection(section); setView("editor"); setPreviewArrival(null); }}
-                    onDismiss={() => setPreviewArrival(null)}
-                  />
-                </div>
-              ) : null}
             </div>
 
             <div className="workbench-actions">
@@ -1056,8 +1072,24 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <li className={realtime.roomState?.status === "FINALIZED" ? "is-current" : ""}><BarChart3 aria-hidden="true" /><span><strong>결과 정리</strong><small>{realtime.roomState?.status === "FINALIZED" ? "문항별 결과 저장 완료" : "종료 후 자동 요약"}</small></span></li>
             </ol>
             <button className="button button--ink" type="button" onClick={() => realtime.roomCode ? setRoomOpen(true) : void prepareRoom()}>{realtime.roomCode ? "진행 화면 열기" : "수업 방 만들기"}</button>
+            {realtime.roomState && (
+              <div className="host-roster" aria-label="참가자 목록">
+                <div className="host-roster__head"><span>참가자 ({realtime.roomState.players.length}명)</span><span>접속 {realtime.roomState.players.filter((player) => player.connected).length}명</span></div>
+                <div className="host-roster__list">
+                  {realtime.roomState.players.map((player) => (
+                    <div key={player.id} className={`host-roster__player${player.role === "HOST" ? " is-host" : ""}${player.connected ? "" : " is-offline"}`}>
+                      <span className="host-roster__dot" aria-hidden="true" />
+                      <span>{player.nickname}{player.role === "HOST" ? " (교사)" : ""}</span>
+                      <em>{player.score}점</em>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="panel-note">{realtime.roomState ? `접속 ${realtime.roomState.players.filter((player) => player.connected).length}명 · 연결 끊김 ${realtime.roomState.players.filter((player) => !player.connected).length}명` : "실시간 접속 상태는 방 안에서 자동 갱신됩니다."}</p>
           </aside>
+          </>
+          )}
         </main>
       )}
 
@@ -1101,7 +1133,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 onSelect={setSubjectFilter}
                 align="end"
                 options={(() => {
-                  const stage = activeStage(gradeFilter);
+                  const stage = gradeFilter === "전체" ? null : gradeFilter.startsWith("초등") ? "초등" : gradeFilter.startsWith("중등") ? "중등" : gradeFilter.startsWith("고등") ? "고등" : null;
                   if (!stage) {
                     return [
                       { group: "과목", options: [{ value: "전체", label: "전체 과목" }] },
@@ -1146,18 +1178,23 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
           <section className="library-results" aria-labelledby="library-results-heading">
             <div className="library-results__head">
               <h2 id="library-results-heading">{hasLibraryFilter ? "검색 결과" : "추천 게임"}</h2>
-              <span aria-live="polite">{filteredLibrary.length}개 결과</span>
+              <span aria-live="polite">{libraryLoading ? "불러오는 중" : `${libraryGames.length}개 결과`}</span>
             </div>
-            {filteredLibrary.length === 0 ? (
+            {libraryLoading ? (
+              <div className="library-empty">
+                <strong>게임을 불러오는 중</strong>
+                <p>공유마당에서 선생님들의 게임을 가져오고 있습니다.</p>
+              </div>
+            ) : libraryGames.length === 0 ? (
               <div className="library-empty">
                 <SearchX aria-hidden="true" />
-                <strong>조건에 맞는 게임이 없어요</strong>
-                <p>다른 학년이나 과목을 골라 보거나, 검색어를 바꿔 보세요.</p>
+                <strong>아직 공개된 게임이 없어요</strong>
+                <p>내 게임을 발행하면 이곳에 소개됩니다.</p>
                 <button className="button button--quiet" type="button" onClick={resetLibraryFilters}><RotateCcw aria-hidden="true" /> 필터 초기화</button>
               </div>
             ) : (
             <div className="library-grid">
-              {filteredLibrary.map((game, index) => (
+              {libraryGames.map((game, index) => (
                 <article className={`library-card library-card--${index % 3}`} key={game.id}>
                   <div className={`library-card__preview library-card__preview--${game.skin.toLowerCase()}`}>
                     <GameBoard geometryId={game.template} skinId={game.skin} tokens={[]} round={1} lastRoll={1} compact />
@@ -1166,7 +1203,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                     <div className="tag-row"><span>{game.subject}</span><span>{game.grade}</span><span>{boardGeometries[game.template].shortName}</span></div>
                     <h3>{game.title}</h3>
                     <p>{game.description}</p>
-                    <div className="library-card__meta"><span>문제 {game.questions}</span><span>카드 {game.cards}</span><span>한소연 선생님</span></div>
+                    <div className="library-card__meta"><span>문제 {game.questions}</span><span>카드 {game.cards}</span><span>선생님</span></div>
                   </div>
                   <div className="library-card__actions">
                     <button className="button button--quiet" type="button"><Eye /> 미리보기</button>
@@ -1180,7 +1217,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         </main>
       )}
 
-      {view === "editor" && (
+      {view === "editor" && selectedGame && (
         <main className="editor-page">
           <header className="editor-header">
             <button className="icon-button" type="button" onClick={() => setView("dashboard")} aria-label="대시보드로 돌아가기"><ArrowLeft /></button>
@@ -1241,25 +1278,25 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             )}
             <aside className="editor-preview" aria-label="보드 미리보기">
               <div><h2>맵 미리보기</h2><span>{skinNames[skin]}</span></div>
-              <GameBoard geometryId={geometry} skinId={skin} tokens={tokens.slice(0, 2)} round={1} lastRoll={3} tileTypes={selectedGame.tileTypes} compact />
+              <GameBoard geometryId={geometry} skinId={skin} tokens={[]} round={1} lastRoll={1} tileTypes={selectedGame.tileTypes} compact />
               <p>문제 {selectedGame.questions}개와 카드 {selectedGame.cards}개가 해당 칸에 순환 배치됩니다.</p>
             </aside>
           </div>
         </main>
       )}
 
-      <footer className="foot-marquee" aria-label="서비스 상태">
+      {/* <footer className="foot-marquee" aria-label="서비스 상태">
         <div className="foot-marquee__track" aria-hidden="true">
           <span>MAKE THE LESSON MOVE · 24 TILES · ONE CLASS · </span>
           <span>MAKE THE LESSON MOVE · 24 TILES · ONE CLASS · </span>
         </div>
         <p className="sr-only">Classloop · 수업을 움직이는 24칸 보드게임 스튜디오</p>
-      </footer>
+      </footer> */}
 
       <DialogShell open={createOpen} onClose={() => setCreateOpen(false)} labelledBy="create-dialog-title">
         <div className="dialog-heading"><div><span className="dialog-mark"><FilePlus2 /></span><h2 id="create-dialog-title">새 게임 만들기</h2><p>기본 설정은 나중에 모두 바꿀 수 있습니다.</p></div><button className="icon-button" type="button" onClick={() => setCreateOpen(false)} aria-label="닫기"><X /></button></div>
         <form className="create-form" onSubmit={createGame}>
-          <label><span>게임 제목</span><input name="title" required placeholder="예: 조선 후기, 변화의 길" /></label>
+          <label><span>게임 제목</span><input name="title" required placeholder="예: 별자리 관찰 여행" /></label>
           <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id, index) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} defaultChecked={index === 0} /><span>{id === "LOOP_24" || id === "SPIRAL_24" ? <Grid2X2 /> : <Gamepad2 />}<strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
           <label><span>첫 스킨</span><select name="skin" defaultValue="CAMPUS">{(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}</select></label>
           <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setCreateOpen(false)}>취소</button><button className="button button--primary" type="submit">초안 만들기</button></div>
@@ -1267,9 +1304,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
       </DialogShell>
 
       <DialogShell open={roomOpen} onClose={() => setRoomOpen(false)} labelledBy="room-dialog-title" className="room-dialog">
-        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--teal"><Play /></span><h2 id="room-dialog-title">수업 방이 준비됐어요</h2><p>{realtime.roomState?.gameTitle ?? selectedGame.title}</p></div><button className="icon-button" type="button" onClick={() => setRoomOpen(false)} aria-label="닫기"><X /></button></div>
+        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--teal"><Play /></span><h2 id="room-dialog-title">수업 방이 준비됐어요</h2><p>{realtime.roomState?.gameTitle ?? selectedGame?.title}</p></div><button className="icon-button" type="button" onClick={() => setRoomOpen(false)} aria-label="닫기"><X /></button></div>
         <div className="room-code-layout">
-          <div className="qr-mark" aria-label="방 참가 QR 코드 미리보기">{Array.from({ length: 121 }, (_, index) => <i key={index} className={(index * 7 + Math.floor(index / 11) * 3) % 5 < 2 ? "is-dark" : ""} />)}</div>
+          {realtime.roomCode && <RoomQrCode roomCode={realtime.roomCode} />}
           <div className="room-code-copy"><span>참가 코드</span><strong>{formattedRoomCode}</strong><button className="button button--outline copy-button" data-state={copied ? "copied" : undefined} type="button" onClick={copyRoomCode} disabled={!realtime.roomCode}>{copied ? <Check /> : <Copy />}{copied ? "복사됨" : "코드 복사"}</button></div>
         </div>
         <div className="room-settings"><span><Users /> {realtime.roomState?.players.length ?? 1}명 접속 · 최대 40명</span><span><Eye /> {realtime.status === "open" ? "실시간 연결됨" : realtime.status === "reconnecting" ? "재연결 중" : "연결 준비 중"}</span></div>
@@ -1286,6 +1323,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         </form>
         <p className="privacy-note"><LockKeyhole /> 계정 없이 참가하며, 닉네임은 이 수업이 끝나면 삭제됩니다.</p>
       </DialogShell>
+      </>
+      )}
     </div>
   );
 }

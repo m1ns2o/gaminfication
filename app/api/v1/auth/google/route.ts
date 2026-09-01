@@ -1,4 +1,4 @@
-import { beginGoogleOAuth, GoogleOAuthError, safeAuthReturnTo } from "../../../../lib/google-oauth";
+import { beginGoogleOAuth, GoogleOAuthError, safeAuthReturnTo } from "../../../../lib/oauth/google";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);

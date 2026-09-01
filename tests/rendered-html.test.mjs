@@ -17,13 +17,15 @@ test("build emits the vinext worker artifacts", async () => {
 });
 
 test("Classloop page and worker expose the realtime room surface", async () => {
-  const [page, layout, studio, styles, auth, googleOAuth, googleStart, googleCallback, login, schema, worker, wrangler, realtimeSmoke, realtimeLocal] = await Promise.all([
+  const [page, layout, studioPage, playPage, studio, styles, auth, googleOAuth, googleStart, googleCallback, login, schema, worker, wrangler, realtimeSmoke, realtimeLocal] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
+    readFile(new URL("app/studio/page.tsx", root), "utf8"),
+    readFile(new URL("app/play/page.tsx", root), "utf8"),
     readFile(new URL("app/components/studio-app.tsx", root), "utf8"),
     readFile(new URL("app/studio.css", root), "utf8"),
-    readFile(new URL("app/lib/teacher-auth.ts", root), "utf8"),
-    readFile(new URL("app/lib/google-oauth.ts", root), "utf8"),
+    readFile(new URL("app/lib/session.ts", root), "utf8"),
+    readFile(new URL("app/lib/oauth/google.ts", root), "utf8"),
     readFile(new URL("app/api/v1/auth/google/route.ts", root), "utf8"),
     readFile(new URL("app/api/v1/auth/google/callback/route.ts", root), "utf8"),
     readFile(new URL("app/login/page.tsx", root), "utf8"),
@@ -34,8 +36,12 @@ test("Classloop page and worker expose the realtime room surface", async () => {
     readFile(new URL("tests/realtime-local.mjs", root), "utf8"),
   ]);
 
-  assert.match(page, /getTeacherFromCookie/);
-  assert.match(page, /<StudioApp\s+auth=/);
+  assert.match(page, /HomeJoin/);
+  assert.match(page, /게임 코드로 참가하기/);
+  assert.match(studioPage, /getTeacherFromCookie/);
+  assert.match(studioPage, /<StudioApp\s+auth=/);
+  assert.match(studioPage, /redirect\("\/login\?returnTo=%2Fstudio"\)/);
+  assert.match(playPage, /<StudioApp\s+auth=\{\{\s*user: null/);
   assert.match(layout, /Classloop/);
   assert.match(studio, /useGameRoom\(\)/);
   assert.match(studio, /prepareRoom/);
