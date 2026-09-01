@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../../../db";
-import { games } from "../../../../../db/schema";
+import { games, roomParticipants, roomQuestionResponses, roomResults, rooms } from "../../../../../db/schema";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../../lib/server-api";
 
-const templates = ["LOOP_24", "RACE_24", "LINE_24", "SPIRAL_24"] as const;
+const templates = ["LOOP_24"] as const;
 const skins = ["CAMPUS", "SPACE_LAB", "ECO_EXPEDITION"] as const;
 const victoryModes = ["AUTO", "SCORE", "ROUNDS", "FINISH"] as const;
 const tileTypes = ["START", "QUIZ", "BONUS", "EVENT", "REST"] as const;
@@ -27,8 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ownerId = await getCreatorId(request);
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {  const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();
   try {
     const { id } = await params;
@@ -74,3 +73,29 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return routeError(error);
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ownerId = await getCreatorId(request);
+  if (!ownerId) return unauthorized();
+  try {
+    const { id } = await params;
+    const db = getDb();
+    const [existing] = await db.select({ id: games.id }).from(games).where(and(eq(games.id, id), eq(games.ownerId, ownerId))).limit(1);
+    if (!existing) return Response.json({ error: { code: "GAME_NOT_FOUND", message: "게임을 찾을 수 없습니다." } }, { status: 404 });
+
+    // rooms는 games에 cascade가 없으므로 소유 게임의 방을 먼저 정리합니다.
+    const roomIds = await db.select({ id: rooms.id }).from(rooms).where(eq(rooms.gameId, id));
+    if (roomIds.length > 0) {
+      await db.delete(roomParticipants).where(inArray(roomParticipants.roomId, roomIds.map((row) => row.id)));
+      await db.delete(roomQuestionResponses).where(inArray(roomQuestionResponses.roomId, roomIds.map((row) => row.id)));
+      await db.delete(roomResults).where(inArray(roomResults.roomId, roomIds.map((row) => row.id)));
+      await db.delete(rooms).where(eq(rooms.gameId, id));
+    }
+    // questions, cards, gameVersions은 games에 cascade 연결되어 함께 삭제됩니다.
+    await db.delete(games).where(eq(games.id, id));
+    return Response.json({ deleted: id });
+  } catch (error) {
+    return routeError(error);
+  }
+}
+

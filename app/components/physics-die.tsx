@@ -1,4 +1,5 @@
 "use client";
+import "../studio.css";
 
 import type { CSSProperties } from "react";
 

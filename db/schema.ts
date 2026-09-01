@@ -49,7 +49,7 @@ export const games = sqliteTable("games", {
   description: text("description").notNull().default(""),
   subject: text("subject").notNull().default("미지정"),
   grade: text("grade").notNull().default("미지정"),
-  template: text("template", { enum: ["LOOP_24", "RACE_24", "LINE_24", "SPIRAL_24"] }).notNull(),
+  template: text("template", { enum: ["LOOP_24"] }).notNull(),
   skin: text("skin", { enum: ["CAMPUS", "SPACE_LAB", "ECO_EXPEDITION"] }).notNull(),
   status: text("status", { enum: ["DRAFT", "PUBLISHED", "PENDING_REVIEW"] }).notNull().default("DRAFT"),
   visibility: text("visibility", { enum: ["PRIVATE", "UNLISTED", "PUBLIC"] }).notNull().default("PRIVATE"),

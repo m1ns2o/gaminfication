@@ -13,6 +13,24 @@ type RoomSessionResponse = {
 
 const ROOM_SESSION_KEY = "classloop:active-room-session:v1";
 
+// sessionStorage를 사용해 같은 탭(SPA 뷰 전환) 안에서 방 세션을 유지합니다.
+function readRoomSession(): RoomSessionResponse | null {
+  try {
+    const stored = window.sessionStorage.getItem(ROOM_SESSION_KEY);
+    return stored ? JSON.parse(stored) as RoomSessionResponse : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeRoomSession(session: RoomSessionResponse) {
+  try {
+    window.sessionStorage.setItem(ROOM_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // The live connection still works when browser storage is unavailable.
+  }
+}
+
 async function readRoomResponse(response: Response): Promise<RoomSessionResponse> {
   const payload = await response.json() as RoomSessionResponse & { error?: { message?: string } };
   if (!response.ok) throw new Error(payload.error?.message ?? "게임방 요청을 처리하지 못했습니다.");
@@ -65,11 +83,7 @@ export function useGameRoom() {
     setParticipantId(session.participant.id);
     setRoomCode(session.room.code);
     setError(null);
-    try {
-      window.sessionStorage.setItem(ROOM_SESSION_KEY, JSON.stringify(session));
-    } catch {
-      // The live connection still works when browser storage is unavailable.
-    }
+    writeRoomSession(session);
 
     const openSocket = () => {
       if (generation !== generationRef.current || manualCloseRef.current) return;
@@ -125,16 +139,11 @@ export function useGameRoom() {
 
   useEffect(() => {
     let cancelled = false;
-    try {
-      const stored = window.sessionStorage.getItem(ROOM_SESSION_KEY);
-      if (stored) {
-        const session = JSON.parse(stored) as RoomSessionResponse;
-        window.queueMicrotask(() => {
-          if (!cancelled) connect(session);
-        });
-      }
-    } catch {
-      window.sessionStorage.removeItem(ROOM_SESSION_KEY);
+    const session = readRoomSession();
+    if (session) {
+      window.queueMicrotask(() => {
+        if (!cancelled) connect(session);
+      });
     }
     return () => { cancelled = true; };
   }, [connect]);

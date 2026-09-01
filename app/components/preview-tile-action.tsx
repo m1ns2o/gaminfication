@@ -1,4 +1,5 @@
 "use client";
+import "../studio.css";
 
 import { ArrowRight, BookOpen, CheckCircle2, Coffee, Flag, Gift, Zap } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";

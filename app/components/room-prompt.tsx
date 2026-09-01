@@ -1,4 +1,5 @@
 "use client";
+import "../studio.css";
 
 import { CheckCircle2, CircleHelp, Sparkles, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";

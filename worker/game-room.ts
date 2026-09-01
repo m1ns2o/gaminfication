@@ -40,7 +40,9 @@ const SESSION_PREFIX = "session:";
 const ACTIONS_KEY = "recent-actions";
 const CONTENT_KEY = "room-content";
 const PENDING_ANSWERS_KEY = "pending-answers";
+const HOST_EXPIRY_ALARM_KEY = "host-expiry-alarm";
 const SESSION_LIFETIME_MS = 6 * 60 * 60 * 1000;
+const HOST_DISCONNECT_EXPIRY_MS = 60 * 1000;
 const MAX_RECENT_ACTIONS = 128;
 
 function json(data: unknown, status = 200) {
@@ -242,6 +244,12 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     server.serializeAttachment(attachment);
     this.ctx.acceptWebSocket(server);
 
+    // 호스트가 재연결되면 (SPA 뷰 전환 등) 대기 중이던 만료 알람을 취소합니다.
+    const isHost = this.state?.players.some((player) => player.role === "HOST" && player.id === session.participantId) ?? false;
+    if (isHost) {
+      await this.ctx.storage.delete(HOST_EXPIRY_ALARM_KEY);
+    }
+
     const next = setPlayerConnected(this.requireState(), session.participantId, true);
     if (next !== this.state) await this.saveState(next);
     this.send(server, { type: "ROOM_STATE", state: this.requireState() });
@@ -293,6 +301,8 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
       let next: GameRoomState | null = null;
       if (message.type === "START_GAME") {
         next = startGame(current, attachment.participantId, message.expectedVersion, now);
+        // 게임이 시작되면 호스트 만료 알람은 무효화합니다.
+        await this.ctx.storage.delete(HOST_EXPIRY_ALARM_KEY);
       } else if (message.type === "ROLL_DICE") {
         next = rollDice(current, attachment.participantId, crypto.getRandomValues(new Uint32Array(1))[0] % 6 + 1, message.expectedVersion, now, this.content);
         if (next.phase === "WAITING_FOR_ANSWER") {
@@ -343,6 +353,13 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
       }
       if (next.status === "FINALIZED") {
         this.ctx.waitUntil(this.persistFinalResults(next).catch((error) => console.error("Failed to persist final room results", error)));
+        // 게임이 끝나면 참가 코드를 즉시 만료합니다.
+        this.ctx.waitUntil(
+          this.environment.DB.prepare("UPDATE rooms SET expires_at = ? WHERE id = ?")
+            .bind(now, next.roomId)
+            .run()
+            .catch((error) => console.error("Failed to expire room after game end", error)),
+        );
       }
       this.broadcastState();
     } catch (error) {
@@ -360,6 +377,23 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
 
   async alarm() {
     if (!this.state) return;
+    // 호스트 연결 끊김 만료 알람이면 방을 즉시 만료하고 종료합니다.
+    const expiryMark = await this.ctx.storage.get<string>(HOST_EXPIRY_ALARM_KEY);
+    if (expiryMark) {
+      await this.ctx.storage.delete(HOST_EXPIRY_ALARM_KEY);
+      // 만료 전에 호스트가 다시 연결됐다면 알람을 무시합니다.
+      const hasHostSocket = this.ctx.getWebSockets().some((candidate) => {
+        const candidateAttachment = candidate.deserializeAttachment() as SocketAttachment | null;
+        return candidateAttachment?.participantId === this.state?.players.find((player) => player.role === "HOST")?.id;
+      });
+      if (hasHostSocket) return;
+      const now = new Date().toISOString();
+      await this.environment.DB.prepare("UPDATE rooms SET expires_at = ? WHERE id = ?")
+        .bind(now, this.state.roomId)
+        .run()
+        .catch((error) => console.error("Failed to expire room after host disconnect", error));
+      return;
+    }
     try {
       const before = this.state;
       const now = new Date().toISOString();
@@ -396,5 +430,20 @@ export class GameRoom extends DurableObject<Cloudflare.Env> {
     const next = setPlayerConnected(this.state, attachment.participantId, false);
     if (next !== this.state) await this.saveState(next);
     this.broadcastState();
+
+    // 교사(호스트)의 마지막 연결이 끊기고 아직 게임 시작 전이라면,
+    // 60초 후 만료 알람을 설정합니다. SPA 뷰 전환에 따른 짧은 재연결은
+    // 알람이 취소되어 방이 유지됩니다. 실제로 창을 닫으면 60초 뒤 만료됩니다.
+    const host = this.state.players.find((player) => player.role === "HOST");
+    if (host && attachment.participantId === host.id && this.state.status === "LOBBY") {
+      const hasHostSocket = this.ctx.getWebSockets().some((candidate) => {
+        const candidateAttachment = candidate.deserializeAttachment() as SocketAttachment | null;
+        return candidateAttachment?.participantId === host.id;
+      });
+      if (!hasHostSocket) {
+        await this.ctx.storage.put(HOST_EXPIRY_ALARM_KEY, new Date().toISOString());
+        await this.ctx.storage.setAlarm(new Date(Date.now() + HOST_DISCONNECT_EXPIRY_MS));
+      }
+    }
   }
 }

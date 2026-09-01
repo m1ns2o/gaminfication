@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const [room] = await db.insert(rooms).values({
       id: crypto.randomUUID(), gameId: payload.gameId, hostId, code, status: "LOBBY",
       stateJson: JSON.stringify({ round: 1, turn: 0, positions: {}, scores: {} }),
-      createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString(),
+      createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
     }).returning();
     await db.insert(roomParticipants).values({
       id: participantId,

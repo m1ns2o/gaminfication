@@ -1,4 +1,5 @@
 "use client";
+import "../studio.css";
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Gamepad2, KeyRound, Users } from "lucide-react";

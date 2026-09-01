@@ -2,16 +2,13 @@
 
 import {
   ArrowLeft,
-  BarChart3,
   BookOpen,
   Check,
-  ChevronDown,
   CircleHelp,
   Clock3,
   Copy,
   Eye,
   FilePlus2,
-  Gamepad2,
   Globe2,
   GraduationCap,
   Grid2X2,
@@ -21,7 +18,6 @@ import {
   LogOut,
   LockKeyhole,
   Menu,
-  MoreHorizontal,
   Palette,
   Play,
   Plus,
@@ -32,12 +28,15 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { toDataURL as qrToDataURL } from "qrcode";
+import { FilterDropdown, type FilterOptionGroup } from "./filter-dropdown";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 import { boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
 import { GameBoard } from "./game-board";
 import { ContentEditor } from "./content-editor";
@@ -45,8 +44,9 @@ import { RoomPrompt } from "./room-prompt";
 import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
 import { TileEditor } from "./tile-editor";
 import { useGameRoom } from "../lib/use-game-room";
+import "../studio.css";
 
-type View = "dashboard" | "library" | "editor";
+type View = "dashboard" | "library" | "editor" | "room";
 type EditorSection = "settings" | "tiles" | "questions" | "cards";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 type JoinRoomInfo = { gameTitle: string; playMode: "INDIVIDUAL" | "TEAM"; teamCount: number };
@@ -131,11 +131,6 @@ function fromApiGame(game: ApiGame): Game {
   };
 }
 
-
-type FilterOptionGroup = {
-  group: string;
-  options: { value: string; label: string }[];
-};
 
 const gradeGroups = [
   { stage: "초등", years: 6 },
@@ -227,114 +222,6 @@ const subjectsByStage: Record<string, string[]> = {
   고등: ["국어", "수학", "영어", "한국사", "사회", "과학", "미술", "음악", "체육", "정보", "기술·가정"],
 };
 
-type FilterDropdownProps = {
-  label: string;
-  icon: LucideIcon;
-  value: string;
-  options: FilterOptionGroup[];
-  onSelect: (value: string) => void;
-  align?: "start" | "end";
-};
-
-function FilterDropdown({ label, icon: Icon, value, options, onSelect, align = "start" }: FilterDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const itemsRef = useRef<HTMLButtonElement[]>([]);
-  const flatOptions = options.flatMap((group) => group.options);
-  const isActive = value !== "전체";
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-        rootRef.current?.querySelector<HTMLButtonElement>("[data-filter-trigger]")?.focus();
-      }
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  function moveFocus(direction: 1 | -1) {
-    const next = direction === 1 ? activeIndex + 1 : activeIndex - 1;
-    const clamped = next < 0 ? flatOptions.length - 1 : next >= flatOptions.length ? 0 : next;
-    setActiveIndex(clamped);
-    itemsRef.current[clamped]?.focus();
-  }
-
-  function select(valueToSelect: string) {
-    onSelect(valueToSelect);
-    setOpen(false);
-    setActiveIndex(-1);
-    rootRef.current?.querySelector<HTMLButtonElement>("[data-filter-trigger]")?.focus();
-  }
-
-  return (
-    <div className={`filter-dropdown${isActive ? " is-active" : ""}`} ref={rootRef}>
-      <button
-        type="button"
-        data-filter-trigger
-        className="filter-dropdown__trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={(event) => {
-          if (!open) return;
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            moveFocus(1);
-          } else if (event.key === "ArrowUp") {
-            event.preventDefault();
-            moveFocus(-1);
-          }
-        }}
-      >
-        <Icon aria-hidden="true" />
-        <span>{isActive ? value : label}</span>
-        <ChevronDown aria-hidden="true" className="filter-dropdown__chevron" />
-      </button>
-      {open && (
-        <div className={`filter-popover filter-popover--${align}`} role="listbox" aria-label={label} ref={listRef}>
-          {options.map((group, groupIndex) => (
-            <div className="filter-popover__group" key={group.group}>
-              <span className="filter-popover__group-label">{group.group}</span>
-              {group.options.map((option, optionIndex) => {
-                const flatIndex = options.slice(0, groupIndex).reduce((sum, g) => sum + g.options.length, 0) + optionIndex;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="option"
-                    aria-selected={value === option.value}
-                    className={`filter-popover__option${value === option.value ? " is-selected" : ""}`}
-                    ref={(element) => {
-                      itemsRef.current[flatIndex] = element as HTMLButtonElement;
-                    }}
-                    onClick={() => select(option.value)}
-                    onMouseEnter={() => setActiveIndex(flatIndex)}
-                  >
-                    <Check aria-hidden="true" className="filter-popover__check" />
-                    <span>{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function statusText(status: GameStatus) {
   return {
     DRAFT: "초안",
@@ -413,30 +300,48 @@ function GameListItem({
   game,
   selected,
   onSelect,
+  onDelete,
+  deleteBusy,
 }: {
   game: Game;
   selected: boolean;
   onSelect: () => void;
+  onDelete: () => void;
+  deleteBusy: boolean;
 }) {
   return (
-    <button
-      type="button"
-      className={`game-list-item${selected ? " is-selected" : ""}`}
-      onClick={onSelect}
-      aria-pressed={selected}
-    >
-      <span className={`game-list-item__map map-swatch map-swatch--${game.skin.toLowerCase()}`} aria-hidden="true">
-        <Grid2X2 />
-      </span>
-      <span className="game-list-item__copy">
-        <strong>{game.title}</strong>
-        <span>{game.subject} · {game.grade}</span>
-      </span>
-      <span className="game-list-item__meta">
-        <span className={`status-dot status-dot--${game.status.toLowerCase()}`} />
-        {game.visibility === "PUBLIC" ? <Globe2 aria-hidden="true" /> : game.visibility === "UNLISTED" ? <Link2 aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}
-      </span>
-    </button>
+    <div className={`game-list-item${selected ? " is-selected" : ""}`}>
+      <button
+        type="button"
+        className="game-list-item__select"
+        onClick={onSelect}
+        aria-pressed={selected}
+      >
+        <span className={`game-list-item__map map-swatch map-swatch--${game.skin.toLowerCase()}`} aria-hidden="true">
+          <Grid2X2 />
+        </span>
+        <span className="game-list-item__copy">
+          <strong>{game.title}</strong>
+          {game.subject !== "미지정" || game.grade !== "미지정" ? (
+            <span>{game.subject} · {game.grade}</span>
+          ) : null}
+        </span>
+        <span className="game-list-item__meta">
+          <span className={`status-dot status-dot--${game.status.toLowerCase()}`} />
+          {game.visibility === "PUBLIC" ? <Globe2 aria-hidden="true" /> : game.visibility === "UNLISTED" ? <Link2 aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="game-list-item__delete"
+        onClick={onDelete}
+        disabled={deleteBusy}
+        aria-label={`${game.title} 삭제`}
+        title="게임 삭제"
+      >
+        <Trash2 aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 
@@ -623,16 +528,84 @@ function HeaderNav({
   );
 }
 
+// 게임 목록을 불러오는 동안 대시보드 자리를 대신하는 스켈레톤 (부모 main.dashboard-shell의 그리드 위에 렌더됨)
+function DashboardSkeleton() {
+  return (
+    <>
+      <span className="sr-only" role="status" aria-label="게임 목록을 불러오는 중">게임 데이터를 불러오는 중입니다. 잠시만 기다려 주세요.</span>
+      <SkeletonTheme
+        baseColor="var(--color-indigo-soft)"
+        highlightColor="oklch(100% 0 0 / 0.55)"
+        borderRadius="0.625rem"
+        duration={1.4}
+      >
+        <section className="workspace-intro" aria-hidden="true">
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <Skeleton width="44%" height={26} />
+            <Skeleton width="72%" height={58} borderRadius="0.75rem" />
+            <Skeleton width="56%" height={26} />
+          </div>
+        </section>
+        <aside className="game-library-panel" aria-hidden="true">
+          <div className="panel-heading">
+            <div style={{ minWidth: 0 }}>
+              <Skeleton width={64} height={22} />
+              <Skeleton width={30} height={14} />
+            </div>
+            <Skeleton width={44} height={44} borderRadius="0.625rem" />
+          </div>
+          <div className="game-list">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.75rem", minHeight: "4.25rem" }}>
+                <Skeleton circle width={44} height={44} />
+                <div style={{ minWidth: 0, flex: 1, display: "grid", gap: "0.5rem" }}>
+                  <Skeleton width="62%" height={17} />
+                  <Skeleton width="44%" height={13} />
+                </div>
+                <Skeleton circle width={20} height={20} />
+              </div>
+            ))}
+          </div>
+        </aside>
+        <section className="board-workbench" aria-hidden="true">
+          <header className="board-workbench__header">
+            <div style={{ display: "grid", gap: "0.4rem", minWidth: 0 }}>
+              <Skeleton width={180} height={14} />
+              <Skeleton width={260} height={30} borderRadius="0.6rem" />
+              <Skeleton width={220} height={14} />
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <Skeleton width={110} height={44} borderRadius="0.625rem" />
+              <Skeleton width={150} height={44} borderRadius="0.625rem" />
+            </div>
+          </header>
+          <Skeleton style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: "0.875rem" }} />
+          <div className="workbench-actions">
+            <Skeleton width={200} height={16} />
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <Skeleton width={110} height={44} borderRadius="0.625rem" />
+              <Skeleton width={150} height={44} borderRadius="0.625rem" />
+            </div>
+          </div>
+        </section>
+      </SkeletonTheme>
+    </>
+  );
+}
+
 export function StudioApp({ auth }: { auth: StudioAuth }) {
   const realtime = useGameRoom();
   const [view, setView] = useState<View>("dashboard");
   const [games, setGames] = useState<Game[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
   const [persistedGameIds, setPersistedGameIds] = useState<Set<string>>(() => new Set());
   const [selectedId, setSelectedId] = useState("");
   const [geometry, setGeometry] = useState<BoardGeometryId>("LOOP_24");
   const [skin, setSkin] = useState<SkinId>("CAMPUS");
+  // 새 게임 만들기 다이얼로그의 첫 스킨 / 참가 다이얼로그의 팀 선택 (커스텀 드롭다운 값)
+  const [createSkin, setCreateSkin] = useState<SkinId>("CAMPUS");
+  const [joinTeam, setJoinTeam] = useState("1");
   const [createOpen, setCreateOpen] = useState(false);
-  const [roomOpen, setRoomOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joinRoomInfo, setJoinRoomInfo] = useState<JoinRoomInfo | null>(null);
@@ -647,6 +620,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [editorSection, setEditorSection] = useState<EditorSection>("questions");
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const [boardAnimating, setBoardAnimating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const clientIdSequence = useRef(1);
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0] ?? null;
@@ -684,7 +659,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         setGeometry(serverGames[0].template);
         setSkin(serverGames[0].skin);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setGamesLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -711,6 +687,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
           const payload = await response.json() as { room?: JoinRoomInfo };
           if (!response.ok || !payload.room) throw new Error("ROOM_NOT_FOUND");
           setJoinRoomInfo(payload.room);
+          setJoinTeam("1");
           setJoinLookupStatus("found");
         })
         .catch((error: unknown) => {
@@ -745,6 +722,38 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     setGeometry(game.template);
     setSkin(game.skin);
     setLiveMessage(`${game.title} ${statusText(game.status)}을 불러왔습니다.`);
+  }
+
+  async function handleDeleteGame() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      const response = await fetch(`/api/v1/games/${deleteTarget.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("DELETE_FAILED");
+      const remaining = games.filter((game) => game.id !== deleteTarget.id);
+      setGames(remaining);
+      setPersistedGameIds((current) => {
+        const next = new Set(current);
+        next.delete(deleteTarget.id);
+        return next;
+      });
+      if (selectedId === deleteTarget.id) {
+        const nextSelected = remaining[0] ?? null;
+        if (nextSelected) {
+          setSelectedId(nextSelected.id);
+          setGeometry(nextSelected.template);
+          setSkin(nextSelected.skin);
+        } else {
+          setSelectedId("");
+        }
+      }
+      setLiveMessage(`${deleteTarget.title} 게임을 삭제했습니다.`);
+      setDeleteTarget(null);
+    } catch {
+      setLiveMessage("게임을 삭제하지 못했습니다. 다시 시도해 주세요.");
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   function openCreate() {
@@ -879,8 +888,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     try {
       const game = await saveGame(selectedGame);
       const session = await realtime.createRoom(game.id);
-      setRoomOpen(true);
       setLiveMessage(`참가 코드 ${session.room.code} 방을 만들었습니다.`);
+      // 새 방 생성 후 SPA 대기실 화면으로 전환합니다.
+      setView("room");
     } catch (error) {
       setLiveMessage(error instanceof Error ? error.message : "수업 방을 만들지 못했습니다.");
     } finally {
@@ -923,7 +933,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
       {view === "dashboard" && (
         <main className="dashboard-shell">
-          {games.length === 0 ? (
+        {gamesLoading ? (
+          <DashboardSkeleton />
+        ) : games.length === 0 ? (
             <section className="workspace-empty reveal" aria-labelledby="empty-workspace-title">
               <div className="workspace-empty__mark" aria-hidden="true">
                 <FilePlus2 />
@@ -962,7 +974,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             </div>
             <div className="game-list">
               {games.map((game) => (
-                <GameListItem key={game.id} game={game} selected={game.id === selectedId} onSelect={() => selectGame(game)} />
+                <GameListItem key={game.id} game={game} selected={game.id === selectedId} onSelect={() => selectGame(game)} onDelete={() => setDeleteTarget(game)} deleteBusy={deleteBusy && deleteTarget?.id === game.id} />
               ))}
             </div>
             <button className="text-button" type="button" onClick={() => setView("library")}>
@@ -980,7 +992,10 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 <h2 id="selected-game-title">{selectedGame.title}</h2>
                 <p>{selectedGame.description}</p>
               </div>
-              <button className="icon-button" type="button" aria-label="게임 더보기"><MoreHorizontal /></button>
+              <div className="workbench-actions__buttons">
+                <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
+                <button className="button button--primary" type="button" onClick={() => void (realtime.roomCode ? setView("room") : prepareRoom())} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : realtime.roomCode ? "게임 시작하기" : "방 만들기"}</button>
+              </div>
             </header>
 
             <div className="board-controls" aria-label="보드 설정 미리보기">
@@ -988,20 +1003,24 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => setGeometry(id)}>{boardGeometries[id].shortName}</button>)}
               </div>
               <div className="board-display-options">
-                <label className="select-label">
-                  <Palette aria-hidden="true" />
-                  <span className="sr-only">맵 스킨</span>
-                  <select value={skin} onChange={(event) => setSkin(event.target.value as SkinId)}>
-                    {(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}
-                  </select>
-                </label>
+                <FilterDropdown
+                  label="맵 스킨"
+                  icon={Palette}
+                  value={skinNames[skin]}
+                  onSelect={(value) => {
+                    const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === value);
+                    if (id) setSkin(id);
+                  }}
+                  align="end"
+                  options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]}
+                />
               </div>
             </div>
 
             <div className="play-stage">
               <GameBoard
-                geometryId={realtime.roomState?.template ?? selectedGame.template}
-                skinId={realtime.roomState?.skin ?? selectedGame.skin}
+                geometryId={realtime.roomState?.template ?? geometry}
+                skinId={realtime.roomState?.skin ?? skin}
                 tokens={realtime.roomState ? realtime.roomState.players.map((player) => ({
                   id: player.id,
                   label: player.nickname,
@@ -1045,51 +1064,62 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 <span><Sparkles aria-hidden="true" /> 이벤트 카드 {selectedGame.cards}</span>
                 <span><Clock3 aria-hidden="true" /> 최근 수정 {selectedGame.updated}</span>
               </div>
-              <div className="workbench-actions__buttons">
-                <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
-                {realtime.canEnd && <button className="button button--danger" type="button" onClick={() => realtime.end()}>게임 종료</button>}
-                <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : "방 만들기"}</button>
-              </div>
+              {realtime.canEnd && <button className="button button--danger" type="button" onClick={() => realtime.end()}>게임 종료</button>}
             </div>
           </section>
 
-          <aside className="session-panel reveal" style={{ "--i": 3 } as React.CSSProperties} aria-labelledby="session-heading">
-            <div className="panel-heading">
-              <div>
-                <span className="online-dot" aria-hidden="true" />
-                <h2 id="session-heading">오늘의 진행</h2>
-              </div>
-              <span>실시간</span>
-            </div>
-            <div className="session-summary">
-              <span className="session-summary__time">{realtime.roomCode ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}` : "수업 전"}</span>
-              <strong>{realtime.roomState?.gameTitle ?? selectedGame.title}</strong>
-              <span>{realtime.roomState ? `${realtime.roomState.players.length}명 · ${realtime.roomState.gameMode.playMode === "TEAM" ? `${realtime.roomState.gameMode.teamCount}개 팀` : "개인전"}` : "방을 만들면 참가 현황이 표시됩니다."}</span>
-            </div>
-            <ol className="session-timeline">
-              <li className={realtime.roomState ? realtime.roomState.status === "LOBBY" ? "is-current" : "is-complete" : ""}><Check aria-hidden="true" /><span><strong>참가 확인</strong><small>{realtime.roomState ? `${realtime.roomState.players.length}명 입장` : "방 생성 대기"}</small></span></li>
-              <li className={realtime.roomState?.status === "PLAYING" ? "is-current" : realtime.roomState?.status === "FINALIZED" ? "is-complete" : ""}><Play aria-hidden="true" /><span><strong>게임 진행</strong><small>{realtime.roomState?.status === "PLAYING" ? `${realtime.roomState.round}라운드 · ${realtime.roomState.phase === "WAITING_FOR_ANSWER" ? "응답 중" : "주사위 대기"}` : "시작 전"}</small></span></li>
-              <li className={realtime.roomState?.status === "FINALIZED" ? "is-current" : ""}><BarChart3 aria-hidden="true" /><span><strong>결과 정리</strong><small>{realtime.roomState?.status === "FINALIZED" ? "문항별 결과 저장 완료" : "종료 후 자동 요약"}</small></span></li>
-            </ol>
-            <button className="button button--ink" type="button" onClick={() => realtime.roomCode ? setRoomOpen(true) : void prepareRoom()}>{realtime.roomCode ? "진행 화면 열기" : "수업 방 만들기"}</button>
-            {realtime.roomState && (
-              <div className="host-roster" aria-label="참가자 목록">
-                <div className="host-roster__head"><span>참가자 ({realtime.roomState.players.length}명)</span><span>접속 {realtime.roomState.players.filter((player) => player.connected).length}명</span></div>
-                <div className="host-roster__list">
-                  {realtime.roomState.players.map((player) => (
-                    <div key={player.id} className={`host-roster__player${player.role === "HOST" ? " is-host" : ""}${player.connected ? "" : " is-offline"}`}>
-                      <span className="host-roster__dot" aria-hidden="true" />
-                      <span>{player.nickname}{player.role === "HOST" ? " (교사)" : ""}</span>
-                      <em>{player.score}점</em>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <p className="panel-note">{realtime.roomState ? `접속 ${realtime.roomState.players.filter((player) => player.connected).length}명 · 연결 끊김 ${realtime.roomState.players.filter((player) => !player.connected).length}명` : "실시간 접속 상태는 방 안에서 자동 갱신됩니다."}</p>
-          </aside>
           </>
           )}
+        </main>
+      )}
+
+      {view === "room" && (
+        <main className="room-lounge" aria-labelledby="room-lounge-title">
+          <header className="room-lounge__bar">
+            <button className="icon-button" type="button" onClick={() => setView("dashboard")} aria-label="대시보드로 돌아가기"><ArrowLeft /></button>
+            <div>
+              <span className="online-dot" aria-hidden="true" />
+              <strong>{realtime.roomState?.gameTitle ?? selectedGame?.title ?? "게임 대기실"}</strong>
+            </div>
+            <span className="room-lounge__status">{realtime.status === "open" ? "실시간 연결됨" : realtime.status === "reconnecting" ? "재연결 중" : "연결 준비 중"}</span>
+          </header>
+          <div className="room-lounge__body">
+            <section className="room-lounge__invite" aria-labelledby="room-invite-title">
+              <h2 id="room-invite-title">학생들을 초대하세요</h2>
+              <p>QR을 스캔하거나 참가 코드를 알려주면 학생들이 바로 입장합니다.</p>
+              <RoomQrCode roomCode={realtime.roomCode ?? ""} />
+              <div className="room-code-copy">
+                <span>참가 코드</span>
+                <strong>{formattedRoomCode}</strong>
+                <button className="button button--outline copy-button" data-state={copied ? "copied" : undefined} type="button" onClick={copyRoomCode}>{copied ? <Check /> : <Copy />}{copied ? "복사됨" : "코드 복사"}</button>
+              </div>
+              <p className="room-lounge__expiry">이 방은 <strong>2시간</strong> 동안 열려 있습니다. 대시보드로 돌아가거나 게임을 시작하면 참가 코드가 만료됩니다.</p>
+            </section>
+            <section className="room-lounge__roster" aria-labelledby="room-roster-title">
+              <div className="room-lounge__roster-head">
+                <div>
+                  <h2 id="room-roster-title">접속한 학생</h2>
+                  <span>총 {realtime.roomState?.players.length ?? 0}명 · 접속 {realtime.roomState?.players.filter((player) => player.connected).length ?? 0}명</span>
+                </div>
+              </div>
+              <ul className="room-roster__list">
+                {(realtime.roomState?.players ?? []).map((player) => (
+                  <li key={player.id} className={`room-roster__player${player.role === "HOST" ? " is-host" : ""}${player.connected ? "" : " is-offline"}`}>
+                    <span className="host-roster__dot" aria-hidden="true" />
+                    <span>{player.nickname}{player.role === "HOST" ? " (교사)" : ""}</span>
+                    <em>{player.connected ? "접속 중" : "연결 끊김"}</em>
+                  </li>
+                ))}
+              </ul>
+              {(realtime.roomState?.players.length ?? 0) <= 1 && (
+                <p className="room-lounge__empty">아직 학생이 입장하지 않았습니다. QR 또는 참가 코드를 공유해 주세요.</p>
+              )}
+            </section>
+          </div>
+          <footer className="room-lounge__footer">
+            <span className="room-lounge__hint">모든 학생이 들어오면 게임을 시작할 수 있습니다.</span>
+            <button className="button button--ink" type="button" disabled={realtime.status !== "open" || realtime.roomState?.status !== "LOBBY"} onClick={() => { realtime.start(); setLiveMessage("실시간 게임을 시작했습니다."); setView("dashboard"); }}><Play aria-hidden="true" /> 게임 시작</button>
+          </footer>
         </main>
       )}
 
@@ -1181,9 +1211,18 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <span aria-live="polite">{libraryLoading ? "불러오는 중" : `${libraryGames.length}개 결과`}</span>
             </div>
             {libraryLoading ? (
-              <div className="library-empty">
-                <strong>게임을 불러오는 중</strong>
-                <p>공유마당에서 선생님들의 게임을 가져오고 있습니다.</p>
+              <div className="library-grid" role="status" aria-label="공유마당 게임을 불러오는 중">
+                <span className="sr-only">공유마당 게임을 불러오는 중입니다.</span>
+                {Array.from({ length: 3 }, (_, index) => (
+                  <article className="library-card" key={index} aria-hidden="true">
+                    <Skeleton height={150} borderRadius="0.875rem" />
+                    <div className="library-card__body">
+                      <Skeleton width={92} height={24} borderRadius="999px" />
+                      <Skeleton width={160} height={22} />
+                      <Skeleton width={220} height={14} />
+                    </div>
+                  </article>
+                ))}
               </div>
             ) : libraryGames.length === 0 ? (
               <div className="library-empty">
@@ -1297,20 +1336,16 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         <div className="dialog-heading"><div><span className="dialog-mark"><FilePlus2 /></span><h2 id="create-dialog-title">새 게임 만들기</h2><p>기본 설정은 나중에 모두 바꿀 수 있습니다.</p></div><button className="icon-button" type="button" onClick={() => setCreateOpen(false)} aria-label="닫기"><X /></button></div>
         <form className="create-form" onSubmit={createGame}>
           <label><span>게임 제목</span><input name="title" required placeholder="예: 별자리 관찰 여행" /></label>
-          <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id, index) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} defaultChecked={index === 0} /><span>{id === "LOOP_24" || id === "SPIRAL_24" ? <Grid2X2 /> : <Gamepad2 />}<strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
-          <label><span>첫 스킨</span><select name="skin" defaultValue="CAMPUS">{(Object.keys(skinNames) as SkinId[]).map((id) => <option key={id} value={id}>{skinNames[id]}</option>)}</select></label>
+          <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id, index) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} defaultChecked={index === 0} /><span><Grid2X2 /><strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
+          <label><span>첫 스킨</span><input type="hidden" name="skin" value={createSkin} /><FilterDropdown label="스킨 선택" icon={Palette} value={skinNames[createSkin]} onSelect={(label) => { const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === label); if (id) setCreateSkin(id); }} options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]} /></label>
           <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setCreateOpen(false)}>취소</button><button className="button button--primary" type="submit">초안 만들기</button></div>
         </form>
       </DialogShell>
 
-      <DialogShell open={roomOpen} onClose={() => setRoomOpen(false)} labelledBy="room-dialog-title" className="room-dialog">
-        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--teal"><Play /></span><h2 id="room-dialog-title">수업 방이 준비됐어요</h2><p>{realtime.roomState?.gameTitle ?? selectedGame?.title}</p></div><button className="icon-button" type="button" onClick={() => setRoomOpen(false)} aria-label="닫기"><X /></button></div>
-        <div className="room-code-layout">
-          {realtime.roomCode && <RoomQrCode roomCode={realtime.roomCode} />}
-          <div className="room-code-copy"><span>참가 코드</span><strong>{formattedRoomCode}</strong><button className="button button--outline copy-button" data-state={copied ? "copied" : undefined} type="button" onClick={copyRoomCode} disabled={!realtime.roomCode}>{copied ? <Check /> : <Copy />}{copied ? "복사됨" : "코드 복사"}</button></div>
-        </div>
-        <div className="room-settings"><span><Users /> {realtime.roomState?.players.length ?? 1}명 접속 · 최대 40명</span><span><Eye /> {realtime.status === "open" ? "실시간 연결됨" : realtime.status === "reconnecting" ? "재연결 중" : "연결 준비 중"}</span></div>
-        <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setRoomOpen(false)}>보드 보기</button><button className="button button--ink" type="button" disabled={realtime.status !== "open" || realtime.roomState?.status !== "LOBBY"} onClick={() => { realtime.start(); setRoomOpen(false); setLiveMessage("실시간 게임을 시작했습니다."); }}>진행 시작</button></div>
+      <DialogShell open={deleteTarget !== null} onClose={() => { if (!deleteBusy) setDeleteTarget(null); }} labelledBy="delete-dialog-title">
+        <div className="dialog-heading"><div><span className="dialog-mark dialog-mark--danger"><Trash2 /></span><h2 id="delete-dialog-title">게임 삭제</h2><p>삭제하면 되돌릴 수 없습니다.</p></div><button className="icon-button" type="button" onClick={() => { if (!deleteBusy) setDeleteTarget(null); }} aria-label="닫기"><X /></button></div>
+        <p className="dialog-copy">‘{deleteTarget?.title}’ 게임을 정말 삭제할까요? 문제와 카드, 저장된 세부 설정이 모두 함께 삭제됩니다.</p>
+        <div className="dialog-actions"><button className="button button--quiet" type="button" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>취소</button><button className="button button--danger" type="button" disabled={deleteBusy} onClick={() => void handleDeleteGame()}>{deleteBusy ? "삭제 중…" : "삭제"}</button></div>
       </DialogShell>
 
       <DialogShell open={joinOpen} onClose={() => setJoinOpen(false)} labelledBy="join-dialog-title" className="join-dialog">
@@ -1318,7 +1353,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         <form className="join-form" onSubmit={joinRoom}>
           <label><span>6자리 참가 코드</span><input className="code-input" inputMode="numeric" name="code" pattern="[0-9]{6}" maxLength={6} placeholder="482731" required aria-describedby="code-help" value={joinCode} onChange={(event) => { const nextCode = event.target.value.replace(/\D/g, ""); setJoinCode(nextCode); setJoinRoomInfo(null); setJoinLookupStatus(nextCode.length === 6 ? "loading" : "idle"); }} /><small id="code-help">{joinLookupStatus === "loading" ? "방 정보를 확인하고 있습니다." : joinLookupStatus === "found" && joinRoomInfo ? `${joinRoomInfo.gameTitle} · ${joinRoomInfo.playMode === "TEAM" ? `${joinRoomInfo.teamCount}팀 팀전` : "개인전"}` : joinLookupStatus === "missing" ? "열려 있는 방을 찾지 못했습니다." : "숫자만 6자리 입력하세요."}</small></label>
           <label><span>닉네임</span><input name="nickname" minLength={2} maxLength={12} placeholder="별빛나침반" required /></label>
-          {joinRoomInfo?.playMode === "TEAM" && <label><span>팀 선택</span><select name="teamNumber" defaultValue="1">{Array.from({ length: joinRoomInfo.teamCount }, (_, index) => index + 1).map((team) => <option key={team} value={team}>{team}팀</option>)}</select></label>}
+          {joinRoomInfo?.playMode === "TEAM" && <label><span>팀 선택</span><input type="hidden" name="teamNumber" value={joinTeam} /><FilterDropdown label="팀 선택" icon={Users} value={`${joinTeam}팀`} onSelect={(label) => { const n = Number(String(label).replace(/팀$/, "")); if (Number.isFinite(n)) setJoinTeam(String(n)); }} options={[{ group: "팀", options: Array.from({ length: joinRoomInfo.teamCount }, (_, index) => ({ value: `${index + 1}팀`, label: `${index + 1}팀` })) }]} /></label>}
           <button className="button button--primary button--full" type="submit" disabled={realtimeBusy || joinLookupStatus !== "found"}>{realtimeBusy ? "연결 중" : "게임에 참가하기"}</button>
         </form>
         <p className="privacy-note"><LockKeyhole /> 계정 없이 참가하며, 닉네임은 이 수업이 끝나면 삭제됩니다.</p>

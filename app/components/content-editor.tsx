@@ -1,6 +1,7 @@
 "use client";
+import "../studio.css";
 
-import { CircleHelp, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CircleHelp, Clock3, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import {
   cardEffectLabels,
@@ -11,6 +12,7 @@ import {
   type QuestionType,
   type AnswerMode,
 } from "../lib/game-content";
+import { SelectMenu } from "./select-menu";
 
 type EditorSection = "questions" | "cards";
 
@@ -259,7 +261,7 @@ export function ContentEditor({
           <form className="question-form" onSubmit={saveCard}>
             <div className="form-row form-row--split">
               <label><span>카드 이름</span><input value={card.title} onChange={(event) => setCard((current) => ({ ...current, title: event.target.value }))} placeholder="예: 집중력 보너스" required /></label>
-              <label><span>효과</span><select value={card.effectType} onChange={(event) => setCard((current) => ({ ...current, effectType: event.target.value as CardEffectType }))}>{Object.entries(cardEffectLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <div className="form-field"><span>효과</span><SelectMenu label="효과" icon={Sparkles} value={card.effectType} options={Object.entries(cardEffectLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => setCard((current) => ({ ...current, effectType: value as CardEffectType }))} /></div>
             </div>
             {valueRequired && <label><span>{card.effectType === "SCORE_BONUS" ? "추가 점수" : "이동 칸 수"}</span><input type="number" min="1" max={card.effectType === "SCORE_BONUS" ? 100 : 12} value={card.effectValue} onChange={(event) => setCard((current) => ({ ...current, effectValue: Number(event.target.value) }))} /></label>}
             <label><span>참가자 안내</span><textarea value={card.description} onChange={(event) => setCard((current) => ({ ...current, description: event.target.value }))} placeholder="카드를 뽑았을 때 보여 줄 짧은 안내를 적어 주세요." /></label>
@@ -288,8 +290,8 @@ export function ContentEditor({
         </aside>
         <form className="question-form" onSubmit={saveQuestion}>
           <div className="form-row form-row--split">
-            <label><span>문제 유형</span><select value={question.type} onChange={(event) => setQuestion((current) => ({ ...current, type: event.target.value as QuestionType, correctAnswer: "" }))}>{Object.entries(questionTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label><span>풀이 방식</span><select value={question.answerMode} onChange={(event) => setQuestion((current) => ({ ...current, answerMode: event.target.value as AnswerMode }))}><option value="TURN">현재 차례만</option><option value="ALL">전원 동시</option></select></label>
+            <div className="form-field"><span>문제 유형</span><SelectMenu label="문제 유형" icon={CircleHelp} value={question.type} options={Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => setQuestion((current) => ({ ...current, type: value as QuestionType, correctAnswer: "" }))} /></div>
+            <div className="form-field"><span>풀이 방식</span><SelectMenu label="풀이 방식" icon={Users} value={question.answerMode} options={[{ value: "TURN", label: "현재 차례만" }, { value: "ALL", label: "전원 동시" }]} onChange={(value) => setQuestion((current) => ({ ...current, answerMode: value as AnswerMode }))} /></div>
           </div>
           <label><span>질문</span><textarea value={question.prompt} onChange={(event) => setQuestion((current) => ({ ...current, prompt: event.target.value }))} placeholder="학습 내용을 확인할 질문을 입력하세요." required /></label>
           {question.type === "MULTIPLE_CHOICE" && (
@@ -299,7 +301,7 @@ export function ContentEditor({
           {question.type === "OX" && <fieldset className="ox-editor"><legend>정답</legend>{["O", "X"].map((value) => <label key={value}><input type="radio" name="ox-answer" value={value} checked={question.correctAnswer === value} onChange={() => setQuestion((current) => ({ ...current, correctAnswer: value }))} /><span>{value}</span></label>)}</fieldset>}
           <div className="form-row form-row--split">
             <label><span>배점</span><input type="number" min="1" max="100" value={question.points} onChange={(event) => setQuestion((current) => ({ ...current, points: Number(event.target.value) }))} /></label>
-            <label><span>제한 시간</span><select value={question.timeLimitSeconds} onChange={(event) => setQuestion((current) => ({ ...current, timeLimitSeconds: Number(event.target.value) }))}>{[10, 20, 30, 45, 60, 90, 120].map((seconds) => <option key={seconds} value={seconds}>{seconds}초</option>)}</select></label>
+            <div className="form-field"><span>제한 시간</span><SelectMenu label="제한 시간" icon={Clock3} value={String(question.timeLimitSeconds)} options={[10, 20, 30, 45, 60, 90, 120].map((seconds) => ({ value: String(seconds), label: `${seconds}초` }))} onChange={(value) => setQuestion((current) => ({ ...current, timeLimitSeconds: Number(value) }))} /></div>
           </div>
           <label><span>정답 해설 (선택)</span><input value={question.explanation} onChange={(event) => setQuestion((current) => ({ ...current, explanation: event.target.value }))} placeholder="정답 공개 때 보여 줄 설명" /></label>
           <div className="answer-preview"><CircleHelp aria-hidden="true" /><span><strong>정답은 출제자와 서버만 확인합니다.</strong><small>게임 중 참가자에게는 문제와 응답 양식만 표시됩니다.</small></span></div>

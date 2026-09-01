@@ -1,4 +1,5 @@
 "use client";
+import "../studio.css";
 
 import { BookOpen, Coffee, Dices, Flag, Gift, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -54,23 +55,9 @@ const REDUCED_DICE_MOTION_DURATION = 2000;
 const REDUCED_DICE_RESULT_HOLD_DURATION = 1300;
 const TOKEN_STEP_DURATION = 600;
 const REDUCED_TOKEN_STEP_DURATION = 360;
-const tileArrivalCopy: Record<TileType, string> = {
-  START: "출발점에 도착했습니다",
-  QUIZ: "퀴즈가 열립니다",
-  BONUS: "보너스 카드를 확인하세요",
-  EVENT: "이벤트 카드가 발동합니다",
-  REST: "잠깐 쉬어가는 칸입니다",
-};
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
-function followLineTile(scrollRegion: HTMLDivElement | null, tileIndex: number, behavior: ScrollBehavior) {
-  const tile = scrollRegion?.querySelector<HTMLElement>(`[data-tile-index="${tileIndex}"]`);
-  if (!scrollRegion || !tile) return;
-  const left = tile.offsetLeft - (scrollRegion.clientWidth - tile.clientWidth) / 2;
-  scrollRegion.scrollTo({ left: Math.max(0, left), behavior });
 }
 
 function TokenMark({ token, moving = false }: { token: Token; moving?: boolean }) {
@@ -98,10 +85,6 @@ function BoardScenery({ skinId }: { skinId: SkinId }) {
       <span className="board-scenery__item board-scenery__item--four" />
     </div>
   );
-}
-
-function BoardPocket({ skinId }: { skinId: SkinId }) {
-  return <div className={`board-pocket board-pocket--${skinId.toLowerCase()}`} aria-hidden="true"><span /></div>;
 }
 
 function BoardTileView({ tile, tokens, currentStep, landed }: {
@@ -163,7 +146,6 @@ export function GameBoard({
   const rollResultTimerRef = useRef<number | null>(null);
   const motionGenerationRef = useRef(0);
   const motionInFlightRef = useRef(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const movingTokenRef = useRef<HTMLSpanElement | null>(null);
   const tokensRef = useRef(tokens);
@@ -218,15 +200,6 @@ export function GameBoard({
   }, []);
 
   useEffect(() => {
-    if (compact || geometryId !== "LINE_24") return;
-    const frame = window.requestAnimationFrame(() => {
-      const activeToken = tokensRef.current.find((token) => token.active) ?? tokensRef.current[0];
-      if (activeToken) followLineTile(scrollRef.current, activeToken.position, "auto");
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [compact, geometryId]);
-
-  useEffect(() => {
     if (compact) return;
     const currentTokens = tokensRef.current;
     const changed = currentTokens.find((token) => positionsRef.current[token.id] !== undefined && positionsRef.current[token.id] !== token.position);
@@ -275,7 +248,6 @@ export function GameBoard({
           if (generation !== motionGenerationRef.current) return;
           const point = tilePoint(position);
           setCurrentStep(position);
-          if (geometryId === "LINE_24") followLineTile(scrollRef.current, position, "auto");
           if (movingElement && point) {
             movingElement.style.left = `${point.x}px`;
             movingElement.style.top = `${point.y}px`;
@@ -295,7 +267,6 @@ export function GameBoard({
           const startPoint = tilePoint(visualPosition);
           const endPoint = tilePoint(position);
           setCurrentStep(position);
-          if (geometryId === "LINE_24") followLineTile(scrollRef.current, position, "smooth");
           if (movingElement && startPoint && endPoint) {
             movingElement.style.left = `${endPoint.x}px`;
             movingElement.style.top = `${endPoint.y}px`;
@@ -363,34 +334,21 @@ export function GameBoard({
         const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
         return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.id !== movingTokenId && token.position === tile.index)} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} />;
       })}
-      {geometryId === "SPIRAL_24" ? <BoardPocket skinId={skinId} /> : null}
-      {geometryId === "LOOP_24" ? (
-        <div className="board-stage">
-          <BoardScenery skinId={skinId} />
-          <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
-        </div>
-      ) : null}
+      <div className="board-stage">
+        <BoardScenery skinId={skinId} />
+        <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
+      </div>
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
       {rollControl}
       {diceOverlay}
     </div>
   );
 
-  const boardVisual = geometryId === "LINE_24" && !compact ? (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focusable horizontal scroll region.
-    <div ref={scrollRef} className="game-board-scroll" role="region" aria-label="일직선 보드 좌우 스크롤" tabIndex={0}>{board}</div>
-  ) : board;
-
   return (
     <section className={`game-board-frame game-board-frame--2d${compact ? " game-board-frame--compact" : ""}`} aria-label={`${skinNames[skinId]} ${geometry.name} 평면 보드`} data-view-mode="2D">
       <div className="game-board-visual">
-        {boardVisual}
+        {board}
       </div>
-      {!compact ? (
-        <div className="board-console" data-state={rolling ? "rolling" : movingTokenId ? "moving" : landedType ? "arrived" : "idle"}>
-          <div className="board-console__status"><span className="mono-label">ROUND {round}</span><strong>{rolling ? "주사위를 굴리는 중" : movingTokenId ? `${currentStep !== null ? currentStep + 1 : ""}번 칸으로 이동 중` : `${currentTurnLabel} 차례`}</strong><span>{landedType ? `${tileTypeLabels[landedType]} 칸 도착 · ${tileArrivalCopy[landedType]}` : eventLabel}</span></div>
-        </div>
-      ) : null}
       <span className="sr-only" aria-live="polite">{announcement}</span>
     </section>
   );
