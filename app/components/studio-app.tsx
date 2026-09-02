@@ -35,7 +35,7 @@ import {
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { toDataURL as qrToDataURL } from "qrcode";
 import { FilterDropdown, type FilterOptionGroup } from "./filter-dropdown";
-import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
 import { GameBoard } from "./game-board";
@@ -528,71 +528,8 @@ function HeaderNav({
   );
 }
 
-// 게임 목록을 불러오는 동안 대시보드 자리를 대신하는 스켈레톤 (부모 main.dashboard-shell의 그리드 위에 렌더됨)
-function DashboardSkeleton() {
-  return (
-    <>
-      <span className="sr-only" role="status" aria-label="게임 목록을 불러오는 중">게임 데이터를 불러오는 중입니다. 잠시만 기다려 주세요.</span>
-      <SkeletonTheme
-        baseColor="var(--color-indigo-soft)"
-        highlightColor="oklch(100% 0 0 / 0.55)"
-        borderRadius="0.625rem"
-        duration={1.4}
-      >
-        <section className="workspace-intro" aria-hidden="true">
-          <div style={{ display: "grid", gap: "0.5rem" }}>
-            <Skeleton width="44%" height={26} />
-            <Skeleton width="72%" height={58} borderRadius="0.75rem" />
-            <Skeleton width="56%" height={26} />
-          </div>
-        </section>
-        <aside className="game-library-panel" aria-hidden="true">
-          <div className="panel-heading">
-            <div style={{ minWidth: 0 }}>
-              <Skeleton width={64} height={22} />
-              <Skeleton width={30} height={14} />
-            </div>
-            <Skeleton width={44} height={44} borderRadius="0.625rem" />
-          </div>
-          <div className="game-list">
-            {Array.from({ length: 3 }, (_, index) => (
-              <div key={index} style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.75rem", minHeight: "4.25rem" }}>
-                <Skeleton circle width={44} height={44} />
-                <div style={{ minWidth: 0, flex: 1, display: "grid", gap: "0.5rem" }}>
-                  <Skeleton width="62%" height={17} />
-                  <Skeleton width="44%" height={13} />
-                </div>
-                <Skeleton circle width={20} height={20} />
-              </div>
-            ))}
-          </div>
-        </aside>
-        <section className="board-workbench" aria-hidden="true">
-          <header className="board-workbench__header">
-            <div style={{ display: "grid", gap: "0.4rem", minWidth: 0 }}>
-              <Skeleton width={180} height={14} />
-              <Skeleton width={260} height={30} borderRadius="0.6rem" />
-              <Skeleton width={220} height={14} />
-            </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <Skeleton width={110} height={44} borderRadius="0.625rem" />
-              <Skeleton width={150} height={44} borderRadius="0.625rem" />
-            </div>
-          </header>
-          <Skeleton style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: "0.875rem" }} />
-          <div className="workbench-actions">
-            <Skeleton width={200} height={16} />
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <Skeleton width={110} height={44} borderRadius="0.625rem" />
-              <Skeleton width={150} height={44} borderRadius="0.625rem" />
-            </div>
-          </div>
-        </section>
-      </SkeletonTheme>
-    </>
-  );
-}
-
+// 로딩 중: 데이터와 무관한 정적 셸(인트로·헤딩·버튼·워크벤치 프레임)은 즉시 렌더하고,
+// 데이터 영역(게임 목록·보드)에만 스켈레톤을 채운다.
 export function StudioApp({ auth }: { auth: StudioAuth }) {
   const realtime = useGameRoom();
   const [view, setView] = useState<View>("dashboard");
@@ -648,6 +585,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
   useEffect(() => {
     let cancelled = false;
+
     void fetch("/api/v1/me/games")
       .then(async (response) => {
         const payload = await response.json() as { games?: ApiGame[] };
@@ -931,147 +869,198 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
       <div className="live-region sr-only" aria-live="polite">{announcedMessage}</div>
 
-      {view === "dashboard" && (
-        <main className="dashboard-shell">
-        {gamesLoading ? (
-          <DashboardSkeleton />
-        ) : games.length === 0 ? (
-            <section className="workspace-empty reveal" aria-labelledby="empty-workspace-title">
-              <div className="workspace-empty__mark" aria-hidden="true">
-                <FilePlus2 />
+        {view === "dashboard" && (
+          <main className="dashboard-shell">
+            <section className="workspace-intro reveal" style={{ "--i": 0 } as React.CSSProperties}>
+              <div>
+                <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 게임 테이블` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
+                <h1>오늘의 게임 스테이지</h1>
+                <p>보드를 고르고 수업 방을 열면, 학생 기기의 말이 같은 판 위에서 움직입니다.</p>
               </div>
-              <h1 id="empty-workspace-title">아직 만든 게임이 없습니다</h1>
-              <p>첫 수업 게임을 만들어 보세요. 학생들은 게임 코드로 입장하고, 같은 보드 위에서 움직입니다.</p>
-              <button className="button button--primary" type="button" onClick={openCreate}>
-                <FilePlus2 aria-hidden="true" /> 첫 게임 만들기
-              </button>
+              <div className="workspace-intro__actions">
+                <button className="button button--outline" type="button" onClick={() => setJoinOpen(true)}><Users aria-hidden="true" /> 코드 참가</button>
+                <button className="button button--primary" type="button" onClick={openCreate}><FilePlus2 aria-hidden="true" /> 새 게임 만들기</button>
+              </div>
             </section>
-          ) : (
-          <>
-          <section className="workspace-intro reveal" style={{ "--i": 0 } as React.CSSProperties}>
-            <div>
-              <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 게임 테이블` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
-              <h1>오늘의 게임 스테이지</h1>
-              <p>보드를 고르고 수업 방을 열면, 학생 기기의 말이 같은 판 위에서 움직입니다.</p>
-            </div>
-            <div className="workspace-intro__actions">
-              <button className="button button--outline" type="button" onClick={() => setJoinOpen(true)}>
-                <Users aria-hidden="true" /> 코드 참가
-              </button>
-              <button className="button button--primary" type="button" onClick={openCreate}>
-                <FilePlus2 aria-hidden="true" /> 새 게임 만들기
-              </button>
-            </div>
-          </section>
 
-          <aside className="game-library-panel reveal" style={{ "--i": 1 } as React.CSSProperties} aria-labelledby="my-games-heading">
-            <div className="panel-heading">
-              <div>
-                <h2 id="my-games-heading">내 게임</h2>
-                <span>{games.length}개</span>
-              </div>
-              <button className="icon-button" type="button" onClick={openCreate} aria-label="새 게임 만들기"><Plus /></button>
-            </div>
-            <div className="game-list">
-              {games.map((game) => (
-                <GameListItem key={game.id} game={game} selected={game.id === selectedId} onSelect={() => selectGame(game)} onDelete={() => setDeleteTarget(game)} deleteBusy={deleteBusy && deleteTarget?.id === game.id} />
-              ))}
-            </div>
-            <button className="text-button" type="button" onClick={() => setView("library")}>
-              <Library aria-hidden="true" /> 공유마당 둘러보기
-            </button>
-          </aside>
-
-          <section className="board-workbench reveal" style={{ "--i": 2 } as React.CSSProperties} aria-labelledby="selected-game-title">
-            <header className="board-workbench__header">
-              <div>
-                <div className="status-line">
-                  <span className={`status-badge status-badge--${selectedGame.status.toLowerCase()}`}>{statusText(selectedGame.status)}</span>
-                  <span>{selectedGame.subject} · {selectedGame.grade}</span>
+            <aside className="game-library-panel reveal" style={{ "--i": 1 } as React.CSSProperties} aria-labelledby="my-games-heading">
+              <div className="panel-heading">
+                <div>
+                  <h2 id="my-games-heading">내 게임</h2>
+                  <span key={gamesLoading ? "count-skel" : "count"} className="data-swap">{gamesLoading ? <Skeleton width={30} height={14} /> : `${games.length}개`}</span>
                 </div>
-                <h2 id="selected-game-title">{selectedGame.title}</h2>
-                <p>{selectedGame.description}</p>
+                <button className="icon-button" type="button" onClick={openCreate} aria-label="새 게임 만들기"><Plus /></button>
               </div>
-              <div className="workbench-actions__buttons">
-                <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
-                <button className="button button--primary" type="button" onClick={() => void (realtime.roomCode ? setView("room") : prepareRoom())} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : realtime.roomCode ? "게임 시작하기" : "방 만들기"}</button>
+                            <div className="game-list">
+                {gamesLoading ? (
+                  <div className="data-swap" key="list-skel" style={{ display: "grid", gap: "var(--space-xs)" }} aria-hidden="true">
+                    {Array.from({ length: 3 }, (_, index) => (
+                      <div key={index} style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.75rem", minHeight: "4.25rem" }}>
+                        <Skeleton circle width={44} height={44} />
+                        <div style={{ minWidth: 0, flex: 1, display: "grid", gap: "0.5rem" }}>
+                          <Skeleton width="62%" height={17} />
+                          <Skeleton width="44%" height={13} />
+                        </div>
+                        <Skeleton circle width={20} height={20} />
+                      </div>
+                    ))}
+                  </div>
+                ) : games.length === 0 ? (
+                  <p className="content-empty__hint">아직 만든 게임이 없습니다. 첫 수업 게임을 만들어 보세요.</p>
+                ) : (
+                  <div className="data-swap" key="list-ready">
+                    {games.map((game) => (
+                      <GameListItem key={game.id} game={game} selected={game.id === selectedId} onSelect={() => selectGame(game)} onDelete={() => setDeleteTarget(game)} deleteBusy={deleteBusy && deleteTarget?.id === game.id} />
+                    ))}
+                  </div>
+                )}
               </div>
-            </header>
+              <button className="text-button" type="button" onClick={() => setView("library")}><Library aria-hidden="true" /> 공유마당 둘러보기</button>
+            </aside>
 
-            <div className="board-controls" aria-label="보드 설정 미리보기">
-              <div className="segmented-control" role="group" aria-label="맵 템플릿">
-                {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => setGeometry(id)}>{boardGeometries[id].shortName}</button>)}
-              </div>
-              <div className="board-display-options">
-                <FilterDropdown
-                  label="맵 스킨"
-                  icon={Palette}
-                  value={skinNames[skin]}
-                  onSelect={(value) => {
-                    const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === value);
-                    if (id) setSkin(id);
-                  }}
-                  align="end"
-                  options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]}
-                />
-              </div>
-            </div>
-
-            <div className="play-stage">
-              <GameBoard
-                geometryId={realtime.roomState?.template ?? geometry}
-                skinId={realtime.roomState?.skin ?? skin}
-                tokens={realtime.roomState ? realtime.roomState.players.map((player) => ({
-                  id: player.id,
-                  label: player.nickname,
-                  position: player.position,
-                  symbol: player.symbol,
-                  active: player.id === realtime.roomState?.currentPlayerId,
-                })) : []}
-                round={realtime.roomState?.round ?? 1}
-                lastRoll={realtime.roomState?.lastRoll ?? 1}
-                onRoll={realtime.roomState ? realtime.canRoll ? () => realtime.roll() : undefined : undefined}
-                currentTurnLabel={currentTurnLabel}
-                eventLabel={boardEventLabel}
-                tileTypes={realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes}
-                movement={realtime.roomState && lastRoomEvent?.from !== undefined ? {
-                  key: realtime.roomState.version,
-                  actorId: lastRoomEvent.actorId,
-                  from: lastRoomEvent.from,
-                  rollTo: lastRoomEvent.to,
-                  cardDirection: realtime.roomState.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
-                } : undefined}
-                onAnimationStateChange={setBoardAnimating}
-              />
-
-              {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
-                <div className="play-stage__overlay">
-                  <RoomPrompt
-                    key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
-                    state={realtime.roomState}
-                    canAnswer={realtime.canAnswer}
-                    onAnswer={realtime.answer}
-                    viewerId={realtime.participantId}
-                  />
+            <section className="board-workbench reveal" style={{ "--i": 2 } as React.CSSProperties} aria-labelledby="selected-game-title">
+                            <header className="board-workbench__header">
+                <div key={selectedGame ? "hdr-game" : gamesLoading ? "hdr-skel" : "hdr-none"} className="data-swap">
+                  {selectedGame ? (
+                    <>
+                      <div className="status-line">
+                        <span className={`status-badge status-badge--${selectedGame.status.toLowerCase()}`}>{statusText(selectedGame.status)}</span>
+                        <span>{selectedGame.subject} · {selectedGame.grade}</span>
+                      </div>
+                      <h2 id="selected-game-title">{selectedGame.title}</h2>
+                      <p>{selectedGame.description}</p>
+                    </>
+                  ) : gamesLoading ? (
+                    <div style={{ display: "grid", gap: "0.4rem" }} aria-hidden="true">
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <Skeleton width={64} height={22} borderRadius="999px" />
+                        <Skeleton width={90} height={14} />
+                      </div>
+                      <Skeleton width={260} height={30} borderRadius="0.6rem" />
+                      <Skeleton width={220} height={14} />
+                    </div>
+                  ) : null}
                 </div>
-              )}
+                <div className="workbench-actions__buttons data-swap" key={selectedGame ? "btns" : gamesLoading ? "btns-skel" : "btns-none"}>
+                  {selectedGame ? (
+                    <>
+                      <button className="button button--quiet" type="button" onClick={() => setView("editor")}><Settings aria-hidden="true" /> 편집</button>
+                      <button className="button button--primary" type="button" onClick={() => void (realtime.roomCode ? setView("room") : prepareRoom())} disabled={realtimeBusy}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : realtime.roomCode ? "게임 시작하기" : "방 만들기"}</button>
+                    </>
+                  ) : gamesLoading ? (
+                    <div style={{ display: "flex", gap: "0.75rem" }} aria-hidden="true">
+                      <Skeleton width={110} height={44} borderRadius="0.625rem" />
+                      <Skeleton width={150} height={44} borderRadius="0.625rem" />
+                    </div>
+                  ) : null}
+                </div>
+              </header>
 
-            </div>
+              {selectedGame || gamesLoading ? (
+                <div className="board-controls data-swap" aria-label="보드 설정 미리보기" key={selectedGame ? "controls" : "controls-skel"}>
+                  {selectedGame ? (
+                    <>
+                      <div className="segmented-control" role="group" aria-label="맵 템플릿">
+                        {boardGeometryIds.map((id) => <button key={id} type="button" aria-pressed={geometry === id} onClick={() => setGeometry(id)}>{boardGeometries[id].shortName}</button>)}
+                      </div>
+                      <div className="board-display-options">
+                        <FilterDropdown
+                          label="맵 스킨"
+                          icon={Palette}
+                          value={skinNames[skin]}
+                          onSelect={(value) => {
+                            const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === value);
+                            if (id) setSkin(id);
+                          }}
+                          align="end"
+                          options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }} aria-hidden="true">
+                      <Skeleton width={92} height={44} borderRadius="0.5rem" />
+                      <Skeleton width={92} height={44} borderRadius="0.5rem" />
+                      <Skeleton width={92} height={44} borderRadius="0.5rem" />
+                      <Skeleton width={150} height={44} borderRadius="0.5rem" />
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
-            <div className="workbench-actions">
-              <div className="content-counts">
-                <span><CircleHelp aria-hidden="true" /> 퀴즈 {selectedGame.questions}</span>
-                <span><Sparkles aria-hidden="true" /> 이벤트 카드 {selectedGame.cards}</span>
-                <span><Clock3 aria-hidden="true" /> 최근 수정 {selectedGame.updated}</span>
+              <div className="play-stage">
+                {selectedGame ? (
+                  <div className="data-swap" key="board-game">
+                    <GameBoard
+                      geometryId={realtime.roomState?.template ?? geometry}
+                      skinId={realtime.roomState?.skin ?? skin}
+                      tokens={realtime.roomState ? realtime.roomState.players.map((player) => ({
+                        id: player.id,
+                        label: player.nickname,
+                        position: player.position,
+                        symbol: player.symbol,
+                        active: player.id === realtime.roomState?.currentPlayerId,
+                      })) : []}
+                      round={realtime.roomState?.round ?? 1}
+                      lastRoll={realtime.roomState?.lastRoll ?? 1}
+                      onRoll={realtime.roomState ? realtime.canRoll ? () => realtime.roll() : undefined : undefined}
+                      currentTurnLabel={currentTurnLabel}
+                      eventLabel={boardEventLabel}
+                      tileTypes={realtime.roomState?.tileTypes ?? selectedGame.tileTypes ?? defaultTileTypes}
+                      movement={realtime.roomState && lastRoomEvent?.from !== undefined ? {
+                        key: realtime.roomState.version,
+                        actorId: lastRoomEvent.actorId,
+                        from: lastRoomEvent.from,
+                        rollTo: lastRoomEvent.to,
+                        cardDirection: realtime.roomState.activeCard?.effectType === "MOVE_BACK" ? -1 : 1,
+                      } : undefined}
+                      onAnimationStateChange={setBoardAnimating}
+                    />
+                    {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
+                      <div className="play-stage__overlay">
+                        <RoomPrompt
+                          key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
+                          state={realtime.roomState}
+                          canAnswer={realtime.canAnswer}
+                          onAnswer={realtime.answer}
+                          viewerId={realtime.participantId}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : gamesLoading ? (
+                  <div className="data-swap" key="board-skel" aria-hidden="true">
+                    <Skeleton style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: "0.875rem", border: "4px solid var(--color-rule-strong)" }} />
+                  </div>
+                ) : (
+                  <div className="data-swap board-empty">
+                    <div className="workspace-empty__mark" aria-hidden="true"><FilePlus2 /></div>
+                    <h1>아직 만든 게임이 없습니다</h1>
+                    <p>첫 수업 게임을 만들어 보세요. 학생들은 게임 코드로 입장하고, 같은 보드 위에서 움직입니다.</p>
+                    <button className="button button--primary" type="button" onClick={openCreate}><FilePlus2 aria-hidden="true" /> 첫 게임 만들기</button>
+                  </div>
+                )}
               </div>
-              {realtime.canEnd && <button className="button button--danger" type="button" onClick={() => realtime.end()}>게임 종료</button>}
-            </div>
-          </section>
 
-          </>
-          )}
-        </main>
-      )}
+
+              <div className="workbench-actions data-swap" key={selectedGame ? "actions" : gamesLoading ? "actions-skel" : "actions-none"}>
+                {selectedGame ? (
+                  <>
+                    <div className="content-counts">
+                      <span><CircleHelp aria-hidden="true" /> 퀴즈 {selectedGame.questions}</span>
+                      <span><Sparkles aria-hidden="true" /> 이벤트 카드 {selectedGame.cards}</span>
+                      <span><Clock3 aria-hidden="true" /> 최근 수정 {selectedGame.updated}</span>
+                    </div>
+                    {realtime.canEnd && <button className="button button--danger" type="button" onClick={() => realtime.end()}>게임 종료</button>}
+                  </>
+                ) : gamesLoading ? (
+                  <Skeleton width={200} height={16} />
+                ) : null}
+              </div>
+
+            </section>
+          </main>
+        )}
 
       {view === "room" && (
         <main className="room-lounge" aria-labelledby="room-lounge-title">
