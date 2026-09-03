@@ -26,6 +26,8 @@ export type RoomQuestion = {
 export type RoomQuestionDefinition = RoomQuestion & {
   correctAnswer: string;
   explanation: string;
+  /** 특정 보드 칸에 고정된 문제일 때 칸 인덱스 (공용 풀이면 null) */
+  tileIndex?: number | null;
 };
 
 export type RoomCard = {
@@ -34,6 +36,8 @@ export type RoomCard = {
   description: string;
   effectType: RoomCardEffect;
   effectValue: number;
+  /** 특정 보드 칸에 고정된 카드일 때 칸 인덱스 (공용 풀이면 null) */
+  tileIndex?: number | null;
 };
 
 export type RoomContent = {
@@ -463,19 +467,40 @@ export function rollDice(
     return finishGameState(movedState, movementFinishReason, now, { actorId, dice, from, to });
   }
 
-  if (tileType === "QUIZ" && content.questions.length > 0) {
-    const definition = content.questions[state.questionCursor % content.questions.length];
+  const contentSelection = (() => {
+    if (tileType === "QUIZ") {
+      // 칸에 고정된 문제를 우선하고, 없으면 공용 풀(미고정)에서 순환 배치한다.
+      const boundQuestion = content.questions.find((question) => question.tileIndex === to);
+      if (boundQuestion) return { kind: "question" as const, definition: boundQuestion, bound: true };
+      const poolQuestions = content.questions.filter((question) => question.tileIndex == null);
+      if (poolQuestions.length === 0) return null;
+      return { kind: "question" as const, definition: poolQuestions[state.questionCursor % poolQuestions.length], bound: false };
+    }
+    if (tileType === "BONUS" || tileType === "EVENT") {
+      // 칸에 고정된 카드를 우선하고, 없으면 공용 풀(미고정)에서 순환 배치한다.
+      const boundCard = content.cards.find((card) => card.tileIndex === to);
+      if (boundCard) return { kind: "card" as const, definition: boundCard, bound: true };
+      const poolCards = content.cards.filter((card) => card.tileIndex == null);
+      if (poolCards.length === 0) return null;
+      return { kind: "card" as const, definition: poolCards[state.cardCursor % poolCards.length], bound: false };
+    }
+    return null;
+  })();
+
+  if (tileType === "QUIZ" && contentSelection?.kind === "question") {
+    const question = contentSelection.definition;
+    const boundQuestion = contentSelection.bound;
     const activeQuestion: RoomQuestion = {
-      id: definition.id,
-      type: definition.type,
-      prompt: definition.prompt,
-      options: definition.options,
-      points: definition.points,
-      timeLimitSeconds: definition.timeLimitSeconds,
-      answerMode: definition.answerMode,
+      id: question.id,
+      type: question.type,
+      prompt: question.prompt,
+      options: question.options,
+      points: question.points,
+      timeLimitSeconds: question.timeLimitSeconds,
+      answerMode: question.answerMode,
     };
     const connectedPlayerIds = state.players.filter((player) => player.connected).map((player) => player.id);
-    const expectedResponderIds = definition.answerMode === "ALL"
+    const expectedResponderIds = question.answerMode === "ALL"
       ? connectedPlayerIds.length > 0 ? connectedPlayerIds : state.players.map((player) => player.id)
       : [actorId];
     return nextVersion(
@@ -483,9 +508,9 @@ export function rollDice(
         ...state,
         phase: "WAITING_FOR_ANSWER",
         lastRoll: dice,
-        questionCursor: state.questionCursor + 1,
+        questionCursor: boundQuestion ? state.questionCursor : state.questionCursor + 1,
         activeQuestion,
-        questionDeadlineAt: new Date(new Date(now).getTime() + definition.timeLimitSeconds * 1000).toISOString(),
+        questionDeadlineAt: new Date(new Date(now).getTime() + question.timeLimitSeconds * 1000).toISOString(),
         expectedResponderIds,
         submittedPlayerIds: [],
         activeCard: null,
@@ -493,12 +518,13 @@ export function rollDice(
         lastGroupResult: null,
         players: movedPlayers,
       },
-      { type: "QUESTION_PRESENTED", at: now, actorId, dice, from, to, questionId: definition.id },
+      { type: "QUESTION_PRESENTED", at: now, actorId, dice, from, to, questionId: question.id },
     );
   }
 
-  if ((tileType === "BONUS" || tileType === "EVENT") && content.cards.length > 0) {
-    const card = content.cards[state.cardCursor % content.cards.length];
+  if (contentSelection?.kind === "card" && (tileType === "BONUS" || tileType === "EVENT")) {
+    const card = contentSelection.definition;
+    const boundCard = contentSelection.bound;
     let players = movedPlayers;
     let teamScores = state.teamScores;
     const keepTurn = card.effectType === "EXTRA_TURN";
@@ -515,7 +541,7 @@ export function rollDice(
     }
     const turn = keepTurn ? { turnIndex: state.turnIndex, currentPlayerId: actorId, round: state.round, players } : advanceTurn(state, players);
     return completeTransition(
-      { ...state, ...turn, teamScores, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: state.cardCursor + 1, activeQuestion: null, questionDeadlineAt: null, expectedResponderIds: [], submittedPlayerIds: [], activeCard: card, lastAnswer: null, lastGroupResult: null },
+      { ...state, ...turn, teamScores, phase: "WAITING_FOR_ROLL", lastRoll: dice, cardCursor: boundCard ? state.cardCursor : state.cardCursor + 1, activeQuestion: null, questionDeadlineAt: null, expectedResponderIds: [], submittedPlayerIds: [], activeCard: card, lastAnswer: null, lastGroupResult: null },
       { type: "CARD_DRAWN", at: now, actorId, dice, from, to, cardId: card.id },
     );
   }

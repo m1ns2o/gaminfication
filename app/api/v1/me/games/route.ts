@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../../../db";
-import { games } from "../../../../../db/schema";
+import { cards, games } from "../../../../../db/schema";
+import { defaultCardPack } from "../../../../lib/default-content";
 import { badRequest, getCreatorId, routeError, unauthorized } from "../../../../lib/server-api";
 
 const templates = ["LOOP_24"] as const;
@@ -34,7 +35,21 @@ export async function POST(request: Request) {
       skin: payload.skin === "SPACE_LAB" || payload.skin === "ECO_EXPEDITION" ? payload.skin : "CAMPUS",
       status: "DRAFT", visibility: "PRIVATE", createdAt: now, updatedAt: now,
     }).returning();
-    return Response.json({ game }, { status: 201 });
+    // 기본 카드 풀(모노폴리·부루마블식 보드카드)을 공용 풀로 넣어 바로 플레이 가능하게 한다.
+    if (defaultCardPack.length > 0) {
+      await getDb().insert(cards).values(defaultCardPack.map((card, orderIndex) => ({
+        ...card,
+        id: crypto.randomUUID(),
+        gameId: game.id,
+        tileIndex: null,
+        orderIndex,
+        createdAt: now,
+        updatedAt: now,
+      })));
+      await getDb().update(games).set({ cardsCount: defaultCardPack.length, updatedAt: now }).where(eq(games.id, game.id));
+    }
+    const [updatedGame] = await getDb().select().from(games).where(eq(games.id, game.id)).limit(1);
+    return Response.json({ game: updatedGame }, { status: 201 });
   } catch (error) {
     return routeError(error);
   }

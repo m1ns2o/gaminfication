@@ -72,6 +72,8 @@ export const games = sqliteTable("games", {
 export const questions = sqliteTable("questions", {
   id: text("id").primaryKey(),
   gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  // 특정 보드 칸에 고정된 문제(칸-문제 연결) — null이면 공용 풀(순환 배치)
+  tileIndex: integer("tile_index"),
   type: text("type", { enum: ["MULTIPLE_CHOICE", "SHORT_ANSWER", "OX"] }).notNull(),
   prompt: text("prompt").notNull(),
   optionsJson: text("options_json").notNull().default("[]"),
@@ -90,6 +92,8 @@ export const questions = sqliteTable("questions", {
 export const cards = sqliteTable("cards", {
   id: text("id").primaryKey(),
   gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+  // 특정 보드 칸에 고정된 카드(칸-카드 연결) — null이면 공용 풀(순환 배치)
+  tileIndex: integer("tile_index"),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   effectType: text("effect_type", { enum: ["MOVE_FORWARD", "MOVE_BACK", "SCORE_BONUS", "EXTRA_TURN", "SKIP_TURN"] }).notNull(),

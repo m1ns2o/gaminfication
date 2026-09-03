@@ -5,6 +5,7 @@ export type CardEffectType = "MOVE_FORWARD" | "MOVE_BACK" | "SCORE_BONUS" | "EXT
 export type GameQuestion = {
   id: string;
   gameId: string;
+  tileIndex: number | null;
   type: QuestionType;
   prompt: string;
   options: string[];
@@ -21,6 +22,7 @@ export type GameQuestion = {
 export type GameCard = {
   id: string;
   gameId: string;
+  tileIndex: number | null;
   title: string;
   description: string;
   effectType: CardEffectType;
@@ -114,4 +116,13 @@ export function parseOptions(optionsJson: string) {
   } catch {
     return [];
   }
+}
+
+// 칸 고정 연결(tileIndex)은 칸·콘텐츠 모델에서만 쓰이는 값이라 파서와 분리해 다룬다.
+// 0–23 정수면 해당 값, 아니면(미지정·오류) null로 정규화한다.
+export function normalizeOptionalTileIndex(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(parsed)) return null;
+  return Math.min(23, Math.max(0, parsed));
 }

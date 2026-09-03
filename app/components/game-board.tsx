@@ -1,7 +1,7 @@
 "use client";
 import "../studio.css";
 
-import { BookOpen, Coffee, Dices, Flag, Gift, Zap } from "lucide-react";
+import { BookOpen, Check, Coffee, Dices, Flag, Gift, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   boardGeometries,
@@ -31,6 +31,11 @@ export type BoardMovement = {
   cardDirection?: 1 | -1;
 };
 
+export type BoardTileMark = {
+  index: number;
+  kind: "question" | "card";
+};
+
 type GameBoardProps = {
   geometryId: BoardGeometryId;
   skinId: SkinId;
@@ -45,6 +50,14 @@ type GameBoardProps = {
   movement?: BoardMovement;
   onMovementComplete?: (arrival: { position: number; tileType: TileType }) => void;
   onAnimationStateChange?: (animating: boolean) => void;
+  /** 스튜디오 맵 편집 모드 — 토큰·주사위 없이 칸을 눌러 선택합니다. */
+  editMode?: boolean;
+  selectedTileIndex?: number | null;
+  onTileClick?: (index: number) => void;
+  /** 편집 모드에서 실제로 눌러 선택할 수 있는 칸(문제/카드 섹션용). undefined면 전부 가능. */
+  clickableTileIndexes?: number[] | null;
+  /** 편집 모드에서 칸 위에 표시할 콘텐츠 표식 (문제·카드 지정됨). */
+  tileMarks?: BoardTileMark[];
 };
 
 const tileIcons = { START: Flag, QUIZ: BookOpen, BONUS: Gift, EVENT: Zap, REST: Coffee };
@@ -87,11 +100,15 @@ function BoardScenery({ skinId }: { skinId: SkinId }) {
   );
 }
 
-function BoardTileView({ tile, tokens, currentStep, landed }: {
+function BoardTileView({ tile, tokens, currentStep, landed, selected, onClick, clickable = false, mark }: {
   tile: BoardTile;
   tokens: Token[];
   currentStep: boolean;
   landed: boolean;
+  selected?: boolean;
+  onClick?: (index: number) => void;
+  clickable?: boolean;
+  mark?: BoardTileMark;
 }) {
   const Icon = tileIcons[tile.type];
   const visible = tokens.slice(0, 3);
@@ -99,13 +116,23 @@ function BoardTileView({ tile, tokens, currentStep, landed }: {
   return (
     <div
       data-tile-index={tile.index}
-      className={`board-tile board-tile--${tile.type.toLowerCase()}${tile.index === 23 ? " board-tile--finish" : ""}${currentStep ? " is-current-step" : ""}${landed ? " is-landed" : ""}`}
+      className={`board-tile board-tile--${tile.type.toLowerCase()}${tile.index === 23 ? " board-tile--finish" : ""}${currentStep ? " is-current-step" : ""}${landed ? " is-landed" : ""}${selected ? " is-selected" : ""}${clickable ? " is-clickable" : ""}${mark ? ` has-mark has-mark--${mark.kind}` : ""}`}
       style={{ gridColumn: tile.x + 1, gridRow: tile.y + 1 }}
-      aria-label={`${tile.index + 1}번 칸, ${tile.label}${landed ? ", 방금 도착" : ""}`}
+      role={onClick && clickable ? "button" : undefined}
+      tabIndex={onClick && clickable ? 0 : undefined}
+      aria-label={`${tile.index + 1}번 칸, ${tile.label}${selected ? ", 선택됨" : ""}${onClick && clickable ? ", 편집하려면 누르세요" : ""}`}
+      onClick={onClick && clickable ? () => onClick(tile.index) : undefined}
+      onKeyDown={onClick && clickable ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(tile.index);
+        }
+      } : undefined}
     >
       <span className="board-tile__number">{String(tile.index + 1).padStart(2, "0")}</span>
       <Icon className="board-tile__icon" aria-hidden="true" strokeWidth={2.2} />
       <span className="board-tile__label">{tile.label}</span>
+      {mark ? <span className={`board-tile__mark board-tile__mark--${mark.kind}`} title={mark.kind === "question" ? "문제 지정됨" : "카드 지정됨"}><Check aria-hidden="true" /></span> : null}
       {tokens.length > 0 ? (
         <span className="token-stack">
           {visible.map((token) => <TokenMark key={token.id} token={token} />)}
@@ -130,6 +157,11 @@ export function GameBoard({
   movement,
   onMovementComplete,
   onAnimationStateChange,
+  editMode = false,
+  selectedTileIndex = null,
+  onTileClick,
+  clickableTileIndexes,
+  tileMarks,
 }: GameBoardProps) {
   const geometry = boardGeometries[geometryId];
   const [displayedPositions, setDisplayedPositions] = useState<Record<string, number>>(() => Object.fromEntries(tokens.map((token) => [token.id, token.position])));
@@ -200,7 +232,7 @@ export function GameBoard({
   }, []);
 
   useEffect(() => {
-    if (compact) return;
+    if (compact || editMode) return;
     const currentTokens = tokensRef.current;
     const changed = currentTokens.find((token) => positionsRef.current[token.id] !== undefined && positionsRef.current[token.id] !== token.position);
     const added = currentTokens.filter((token) => positionsRef.current[token.id] === undefined);
@@ -308,12 +340,12 @@ export function GameBoard({
         animationStateRef.current?.(false);
       }
     };
-  }, [compact, geometry, geometryId, movement?.actorId, movement?.cardDirection, movement?.from, movement?.key, movement?.rollTo, targetSignature]);
+  }, [compact, editMode, geometry, geometryId, movement?.actorId, movement?.cardDirection, movement?.from, movement?.key, movement?.rollTo, targetSignature]);
 
-  const displayedTokens = compact ? tokens : tokens.map((token) => ({ ...token, position: displayedPositions[token.id] ?? token.position }));
-  const movingToken = movingTokenId ? displayedTokens.find((token) => token.id === movingTokenId) ?? null : null;
+  const displayedTokens = editMode ? [] : compact ? tokens : tokens.map((token) => ({ ...token, position: displayedPositions[token.id] ?? token.position }));
+  const movingToken = !editMode && movingTokenId ? displayedTokens.find((token) => token.id === movingTokenId) ?? null : null;
   const landedType = landedIndex === null ? null : tileTypes?.[landedIndex] ?? geometry.tiles[landedIndex].type;
-  const rollControl = !compact ? (
+  const rollControl = !compact && !editMode ? (
     <div className="board-roll-control">
       <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
         <Dices aria-hidden="true" />
@@ -321,22 +353,39 @@ export function GameBoard({
       </button>
     </div>
   ) : null;
-  const diceOverlay = rolling && !compact ? (
+  const diceOverlay = rolling && !compact && !editMode ? (
     <div className="dice-roll-overlay" role="status" aria-label={rollPhase === "result" ? `주사위 결과 ${lastRoll}` : "주사위를 굴리는 중"} data-phase={rollPhase}>
       <PhysicsDie value={lastRoll} rollKey={rollCycle} />
       <strong>{rollPhase === "result" ? <>주사위 결과 <b>{lastRoll}</b></> : "주사위가 굴러갑니다"}</strong>
     </div>
   ) : null;
+  const selectedTileType = editMode && selectedTileIndex != null ? tileTypes?.[selectedTileIndex] ?? geometry.tiles[selectedTileIndex].type : null;
   const board = (
-    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()} game-board--view-2d${compact ? " game-board--compact" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
+    <div ref={boardRef} className={`game-board game-board--${geometryId.toLowerCase()} game-board--${skinId.toLowerCase()} game-board--view-2d${compact ? " game-board--compact" : ""}${editMode ? " game-board--edit" : ""}`} style={{ aspectRatio: geometry.aspectRatio, gridTemplateColumns: `repeat(${geometry.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${geometry.rows}, minmax(0, 1fr))` }}>
       {geometry.tiles.map((baseTile) => {
         const type = tileTypes?.[baseTile.index] ?? baseTile.type;
         const tile = type === baseTile.type ? baseTile : { ...baseTile, type, label: tileTypeLabels[type] };
-        return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.id !== movingTokenId && token.position === tile.index)} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} />;
+        const clickable = editMode && (!clickableTileIndexes || clickableTileIndexes.includes(tile.index));
+        const mark = editMode ? tileMarks?.find((candidate) => candidate.index === tile.index) : undefined;
+        return <BoardTileView key={tile.index} tile={tile} tokens={displayedTokens.filter((token) => token.id !== movingTokenId && token.position === tile.index)} currentStep={currentStep === tile.index} landed={landedIndex === tile.index} selected={editMode && selectedTileIndex === tile.index} onClick={editMode ? onTileClick : undefined} clickable={clickable} mark={mark} />;
       })}
       <div className="board-stage">
         <BoardScenery skinId={skinId} />
-        <div className="board-stage__copy"><span className="mono-label">ROUND {round}</span><strong>{currentTurnLabel} 차례</strong><span>{eventLabel}</span></div>
+        <div className={`board-stage__copy${editMode ? " board-stage__copy--edit" : ""}`}>
+          {editMode ? (
+            <>
+              <span className="mono-label">MAP STUDIO</span>
+              <strong>{selectedTileIndex != null && selectedTileType ? `${selectedTileIndex + 1}번 칸 · ${tileTypeLabels[selectedTileType]}` : "맵 미리보기"}</strong>
+              <span>{selectedTileIndex != null ? "아래 패널에서 역할을 바꿔 보세요" : "수정할 칸을 눌러 주세요"}</span>
+            </>
+          ) : (
+            <>
+              <span className="mono-label">ROUND {round}</span>
+              <strong>{currentTurnLabel} 차례</strong>
+              <span>{eventLabel}</span>
+            </>
+          )}
+        </div>
       </div>
       {movingToken ? <span ref={movingTokenRef} className="moving-token"><TokenMark token={movingToken} moving /></span> : null}
       {rollControl}

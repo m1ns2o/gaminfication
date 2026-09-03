@@ -6,9 +6,12 @@ import {
   Check,
   CircleHelp,
   Clock3,
+  Coffee,
   Copy,
   Eye,
   FilePlus2,
+  Flag,
+  Gift,
   Globe2,
   GraduationCap,
   Grid2X2,
@@ -31,14 +34,15 @@ import {
   Trash2,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { toDataURL as qrToDataURL } from "qrcode";
 import { FilterDropdown, type FilterOptionGroup } from "./filter-dropdown";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import { boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
-import { GameBoard } from "./game-board";
+import { boardGeometries, boardGeometryIds, defaultTileTypes, skinNames, tileTypeLabels, type BoardGeometryId, type SkinId, type TileType } from "../lib/board";
+import { GameBoard, type BoardTileMark } from "./game-board";
 import { ContentEditor } from "./content-editor";
 import { RoomPrompt } from "./room-prompt";
 import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
@@ -258,6 +262,32 @@ function RoomQrCode({ roomCode }: { roomCode: string }) {
         <span className="qr-mark__placeholder" aria-hidden="true">QR</span>
       )}
       <p className="qr-mark__hint">스캔하면 바로 입장할 수 있어요</p>
+    </div>
+  );
+}
+
+const tileLegendEntries = [
+  { type: "START", label: tileTypeLabels.START, icon: Flag },
+  { type: "QUIZ", label: tileTypeLabels.QUIZ, icon: BookOpen },
+  { type: "BONUS", label: tileTypeLabels.BONUS, icon: Gift },
+  { type: "EVENT", label: tileTypeLabels.EVENT, icon: Zap },
+  { type: "REST", label: tileTypeLabels.REST, icon: Coffee },
+] as const;
+
+// 칸 구성 요약 칩 — 생성 다이얼로그 미리보기 아래에 배치한다.
+function TileLegend({ tileTypes }: { tileTypes: TileType[] }) {
+  return (
+    <div className="tile-legend" aria-label="칸 구성 요약">
+      {tileLegendEntries.map(({ type, label, icon: Icon }) => {
+        const count = tileTypes.filter((candidate) => candidate === type).length;
+        return (
+          <span key={type} className={`tile-legend__chip tile-legend__chip--${type.toLowerCase()}`}>
+            <Icon aria-hidden="true" />
+            <strong>{count}</strong>
+            <small>{label}</small>
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -539,8 +569,16 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [selectedId, setSelectedId] = useState("");
   const [geometry, setGeometry] = useState<BoardGeometryId>("LOOP_24");
   const [skin, setSkin] = useState<SkinId>("CAMPUS");
+  // 칸 편집 섹션의 라이브 드래프트 — 맵 미리보기와 인스펙터가 공유한다.
+  const [tileTypes, setTileTypes] = useState<TileType[]>(() => [...defaultTileTypes]);
+  const [selectedTileIndex, setSelectedTileIndex] = useState(1);
+  // 문제/카드 섹션에서 맵 위에 표시할 콘텐츠 표식 (문제·카드 지정됨)
+  const [tileMarks, setTileMarks] = useState<BoardTileMark[]>([]);
+  // 문제/카드 섹션의 편집 대상: 맵의 칸(기본) 또는 공용 풀
+  const [contentMode, setContentMode] = useState<"tile" | "pool">("tile");
   // 새 게임 만들기 다이얼로그의 첫 스킨 / 참가 다이얼로그의 팀 선택 (커스텀 드롭다운 값)
   const [createSkin, setCreateSkin] = useState<SkinId>("CAMPUS");
+  const [createTemplate, setCreateTemplate] = useState<BoardGeometryId>("LOOP_24");
   const [joinTeam, setJoinTeam] = useState("1");
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -583,6 +621,20 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     ? `${realtime.roomCode.slice(0, 3)} ${realtime.roomCode.slice(3)}`
     : "--- ---";
 
+  // 에디터 우측 맵 레일 — 섹션에 따라 상호작용 대상 칸이 달라진다.
+  const editorTileTypes = tileTypes.length === 24 ? tileTypes : [...defaultTileTypes];
+  const editorEditMode = editorSection !== "settings";
+  const currentEditorStep = editorSection === "settings" ? 1 : editorSection === "tiles" ? 3 : editorSection === "questions" ? 4 : editorSection === "cards" ? 5 : 1;
+
+  function handleEditorTileClick(index: number) {
+    setContentMode("tile");
+    setSelectedTileIndex(index);
+  }
+
+  function handleEditorTileTypeChange(index: number, type: TileType) {
+    if (index === 0) return; // 시작 칸은 고정
+    setTileTypes((current) => current.length === 24 ? current.map((candidate, candidateIndex) => candidateIndex === index ? type : candidate) : current);
+  }
   useEffect(() => {
     let cancelled = false;
 
@@ -596,6 +648,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         setSelectedId(serverGames[0].id);
         setGeometry(serverGames[0].template);
         setSkin(serverGames[0].skin);
+        setTileTypes(serverGames[0].tileTypes ?? [...defaultTileTypes]);
+        setSelectedTileIndex(1);
       })
       .catch(() => undefined)
       .finally(() => { if (!cancelled) setGamesLoading(false); });
@@ -659,6 +713,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     setSelectedId(game.id);
     setGeometry(game.template);
     setSkin(game.skin);
+    setTileTypes(game.tileTypes ?? [...defaultTileTypes]);
+    setSelectedTileIndex(1);
     setLiveMessage(`${game.title} ${statusText(game.status)}을 불러왔습니다.`);
   }
 
@@ -681,6 +737,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
           setSelectedId(nextSelected.id);
           setGeometry(nextSelected.template);
           setSkin(nextSelected.skin);
+          setTileTypes(nextSelected.tileTypes ?? [...defaultTileTypes]);
+          setSelectedTileIndex(1);
         } else {
           setSelectedId("");
         }
@@ -1252,62 +1310,102 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             <div><span>비공개 초안</span><h1>{selectedGame.title}</h1></div>
             <div className="editor-header__actions">
               <span className="save-state"><Check aria-hidden="true" /> 저장됨</span>
-              <button className="button button--quiet" type="button"><Eye /> 테스트</button>
+              <button className="button button--quiet" type="button" onClick={() => setEditorSection("tiles")}><Grid2X2 aria-hidden="true" /> 칸 편집</button>
               <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Send /> {realtimeBusy ? "준비 중" : "발행 준비"}</button>
             </div>
           </header>
           <div className="editor-layout">
-            <aside className="editor-steps" aria-label="게임 제작 단계">
+            <aside className="editor-steps reveal" style={{ "--i": 0 } as React.CSSProperties} aria-label="게임 제작 단계">
+              <div className="editor-steps__head">
+                <div><span className="mono-label">STUDIO</span><h2>제작 단계</h2></div>
+                <span className="editor-steps__count">{currentEditorStep}/7</span>
+              </div>
               {[
-                ["기본 설정", Check], ["맵 템플릿", Check], ["칸 편집", Check], ["문제은행", BookOpen],
-                ["카드 덱", Sparkles], ["테스트 플레이", Play], ["발행", Share2],
+                ["기본 설정", Check], ["맵 템플릿", Check], ["칸 편집", Check], ["문제 칸", BookOpen],
+                ["카드 칸", Sparkles], ["테스트 플레이", Play], ["발행", Share2],
               ].map(([label, Icon], index) => {
+                const stepNumber = index + 1;
                 const StepIcon = Icon as typeof Check;
-                const isCurrent = ((index === 0 || index === 1) && editorSection === "settings") || (index === 2 && editorSection === "tiles") || (index === 3 && editorSection === "questions") || (index === 4 && editorSection === "cards");
-                return <button key={String(label)} type="button" className={isCurrent ? "is-current" : index < 3 ? "is-complete" : ""} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("tiles"); else if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
+                const isCurrent = stepNumber === currentEditorStep;
+                const isComplete = index < 3 && !isCurrent;
+                return <button key={String(label)} type="button" className={`${isCurrent ? "is-current" : ""}${isComplete ? " is-complete" : ""}${index >= 5 ? " is-future" : ""}`} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("tiles"); else if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><span className="step-number" aria-hidden="true">{isComplete ? <Check /> : stepNumber}</span><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
               })}
             </aside>
-            {editorSection === "settings" ? (
-              <GameSettingsEditor
-                key={selectedGame.id}
-                game={{
-                  id: selectedGame.id,
-                  title: selectedGame.title,
-                  description: selectedGame.description,
-                  subject: selectedGame.subject,
-                  grade: selectedGame.grade,
-                  template: selectedGame.template,
-                  skin: selectedGame.skin,
-                  victoryMode: selectedGame.victoryMode ?? "AUTO",
-                  targetScore: selectedGame.targetScore ?? 100,
-                  maxRounds: selectedGame.maxRounds ?? 10,
-                  playMode: selectedGame.playMode ?? "INDIVIDUAL",
-                  teamCount: selectedGame.teamCount ?? 2,
-                }}
-                onSaved={updateGameSettings}
-                onMessage={setLiveMessage}
+            <section className="editor-content reveal" style={{ "--i": 1 } as React.CSSProperties} aria-label="편집 내용">
+              {editorSection === "settings" ? (
+                <GameSettingsEditor
+                  key={selectedGame.id}
+                  game={{
+                    id: selectedGame.id,
+                    title: selectedGame.title,
+                    description: selectedGame.description,
+                    subject: selectedGame.subject,
+                    grade: selectedGame.grade,
+                    template: selectedGame.template,
+                    skin: selectedGame.skin,
+                    victoryMode: selectedGame.victoryMode ?? "AUTO",
+                    targetScore: selectedGame.targetScore ?? 100,
+                    maxRounds: selectedGame.maxRounds ?? 10,
+                    playMode: selectedGame.playMode ?? "INDIVIDUAL",
+                    teamCount: selectedGame.teamCount ?? 2,
+                  }}
+                  onSaved={updateGameSettings}
+                  onMessage={setLiveMessage}
+                />
+              ) : editorSection === "tiles" ? (
+                <TileEditor
+                  key={selectedGame.id}
+                  gameId={selectedGame.id}
+                  tileTypes={tileTypes.length === 24 ? tileTypes : defaultTileTypes}
+                  selectedTileIndex={selectedTileIndex}
+                  onChangeTile={(index, type) => setTileTypes((current) => current.length === 24 ? current.map((candidate, candidateIndex) => candidateIndex === index ? type : candidate) : current)}
+                  onSaved={updateTileTypes}
+                  onMessage={setLiveMessage}
+                />
+              ) : (
+                <ContentEditor
+                  gameId={selectedGame.id}
+                  enabled={persistedGameIds.has(selectedGame.id)}
+                  section={editorSection}
+                  tileTypes={editorTileTypes}
+                  selectedTileIndex={selectedTileIndex}
+                  contentMode={contentMode}
+                  onSelectTile={setSelectedTileIndex}
+                  onContentModeChange={setContentMode}
+                  onTileTypeChange={handleEditorTileTypeChange}
+                  onMessage={setLiveMessage}
+                  onCountsChange={updateContentCounts}
+                  onMarksChange={setTileMarks}
+                />
+              )}
+            </section>
+            <aside className="editor-board reveal" style={{ "--i": 2 } as React.CSSProperties} aria-label="맵 미리보기">
+              <div className="editor-board__head">
+                <h2>{editorSection === "tiles" ? "맵 편집 — 칸을 눌러 선택하세요" : editorSection === "questions" ? "문제 칸 — 퀴즈 칸을 선택하세요" : editorSection === "cards" ? "카드 칸 — 이벤트·보너스 칸을 선택하세요" : "맵 미리보기"}</h2>
+                <span className="editor-board__skin"><Palette aria-hidden="true" /> {skinNames[skin]}</span>
+              </div>
+              <GameBoard
+                geometryId={geometry}
+                skinId={skin}
+                tokens={[]}
+                round={1}
+                lastRoll={1}
+                tileTypes={editorTileTypes}
+                compact={editorSection === "settings"}
+                editMode={editorEditMode}
+                selectedTileIndex={editorEditMode ? selectedTileIndex : null}
+                onTileClick={editorEditMode ? handleEditorTileClick : undefined}
+                tileMarks={tileMarks}
               />
-            ) : editorSection === "tiles" ? (
-              <TileEditor
-                key={selectedGame.id}
-                gameId={selectedGame.id}
-                initialTileTypes={selectedGame.tileTypes}
-                onSaved={updateTileTypes}
-                onMessage={setLiveMessage}
-              />
-            ) : (
-              <ContentEditor
-                gameId={selectedGame.id}
-                enabled={persistedGameIds.has(selectedGame.id)}
-                section={editorSection}
-                onMessage={setLiveMessage}
-                onCountsChange={updateContentCounts}
-              />
-            )}
-            <aside className="editor-preview" aria-label="보드 미리보기">
-              <div><h2>맵 미리보기</h2><span>{skinNames[skin]}</span></div>
-              <GameBoard geometryId={geometry} skinId={skin} tokens={[]} round={1} lastRoll={1} tileTypes={selectedGame.tileTypes} compact />
-              <p>문제 {selectedGame.questions}개와 카드 {selectedGame.cards}개가 해당 칸에 순환 배치됩니다.</p>
+              <p className="editor-board__hint">
+                {editorSection === "tiles"
+                  ? "맵에서 칸을 눌러 선택하고, 왼쪽 편집기에서 유형을 바꿔 보세요.「칸 저장」을 누르면 이후 만드는 방부터 적용됩니다."
+                  : editorSection === "questions"
+                    ? "맵에서 칸을 눌러 문제를 입력하세요. 왼쪽의 칸 유형 드롭다운으로 어떤 칸이든 퀴즈 칸으로 바꿀 수 있어요."
+                    : editorSection === "cards"
+                      ? "맵에서 칸을 눌러 카드를 입력하세요. 왼쪽의 칸 유형 드롭다운으로 어떤 칸이든 이벤트 칸으로 바꿀 수 있어요."
+                      : `문제 ${selectedGame.questions}개와 카드 ${selectedGame.cards}개가 지정한 칸에서 출제됩니다.`}
+              </p>
             </aside>
           </div>
         </main>
@@ -1321,14 +1419,21 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
         <p className="sr-only">Classloop · 수업을 움직이는 24칸 보드게임 스튜디오</p>
       </footer> */}
 
-      <DialogShell open={createOpen} onClose={() => setCreateOpen(false)} labelledBy="create-dialog-title">
-        <div className="dialog-heading"><div><span className="dialog-mark"><FilePlus2 /></span><h2 id="create-dialog-title">새 게임 만들기</h2><p>기본 설정은 나중에 모두 바꿀 수 있습니다.</p></div><button className="icon-button" type="button" onClick={() => setCreateOpen(false)} aria-label="닫기"><X /></button></div>
-        <form className="create-form" onSubmit={createGame}>
-          <label><span>게임 제목</span><input name="title" required placeholder="예: 별자리 관찰 여행" /></label>
-          <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id, index) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} defaultChecked={index === 0} /><span><Grid2X2 /><strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
-          <label><span>첫 스킨</span><input type="hidden" name="skin" value={createSkin} /><FilterDropdown label="스킨 선택" icon={Palette} value={skinNames[createSkin]} onSelect={(label) => { const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === label); if (id) setCreateSkin(id); }} options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]} /></label>
-          <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setCreateOpen(false)}>취소</button><button className="button button--primary" type="submit">초안 만들기</button></div>
-        </form>
+      <DialogShell open={createOpen} onClose={() => setCreateOpen(false)} labelledBy="create-dialog-title" className="create-dialog">
+        <div className="dialog-heading"><div><span className="dialog-mark"><FilePlus2 /></span><h2 id="create-dialog-title">새 게임 만들기</h2><p>보드 미리보기를 보고 제목과 첫 스킨을 골라 주세요. 모든 설정은 나중에 바꿀 수 있습니다.</p></div><button className="icon-button" type="button" onClick={() => setCreateOpen(false)} aria-label="닫기"><X /></button></div>
+        <div className="create-dialog__grid">
+          <form className="create-form" onSubmit={createGame}>
+            <label><span>게임 제목</span><input name="title" required placeholder="예: 별자리 관찰 여행" /></label>
+            <fieldset><legend>맵 템플릿</legend>{boardGeometryIds.map((id) => <label className="radio-card" key={id}><input type="radio" name="template" value={id} checked={createTemplate === id} onChange={() => setCreateTemplate(id)} /><span><Grid2X2 /><strong>{boardGeometries[id].name}</strong><small>{boardGeometries[id].description}</small></span></label>)}</fieldset>
+            <label><span>첫 스킨</span><input type="hidden" name="skin" value={createSkin} /><FilterDropdown label="스킨 선택" icon={Palette} value={skinNames[createSkin]} onSelect={(label) => { const id = (Object.keys(skinNames) as SkinId[]).find((key) => skinNames[key] === label); if (id) setCreateSkin(id); }} options={[{ group: "스킨", options: (Object.keys(skinNames) as SkinId[]).map((id) => ({ value: skinNames[id], label: skinNames[id] })) }]} /></label>
+            <div className="dialog-actions"><button className="button button--quiet" type="button" onClick={() => setCreateOpen(false)}>취소</button><button className="button button--primary" type="submit">초안 만들기</button></div>
+          </form>
+          <aside className="create-preview" aria-label="만들게 될 보드 미리보기">
+            <GameBoard geometryId={createTemplate} skinId={createSkin} tokens={[]} round={1} lastRoll={1} compact />
+            <div className="create-preview__meta"><span className="mono-label">LOOP_24 · 24 TILES</span><strong>{boardGeometries[createTemplate].name}</strong><small>중앙 무대를 둘러 도는 수업형 보드 · 기본 카드 풀 6장 포함</small></div>
+            <TileLegend tileTypes={defaultTileTypes} />
+          </aside>
+        </div>
       </DialogShell>
 
       <DialogShell open={deleteTarget !== null} onClose={() => { if (!deleteBusy) setDeleteTarget(null); }} labelledBy="delete-dialog-title">

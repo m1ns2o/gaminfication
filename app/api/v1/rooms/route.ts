@@ -97,6 +97,7 @@ export async function POST(request: Request) {
           points: question.points,
           timeLimitSeconds: question.timeLimitSeconds,
           answerMode: question.answerMode,
+          tileIndex: question.tileIndex,
         })),
         cards: gameCards.map((card) => ({
           id: card.id,
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
           description: card.description,
           effectType: card.effectType,
           effectValue: card.effectValue,
+          tileIndex: card.tileIndex,
         })),
         host: { id: participantId, nickname: "진행자", teamNumber: ownedGame.playMode === "TEAM" ? 1 : null },
         now: now.toISOString(),

@@ -143,6 +143,54 @@ test("uses the teacher-authored tile layout in the authoritative engine", () => 
   assert.equal(state.currentPlayerId, "player-1");
 });
 
+test("prefers tile-bound questions and falls back to the unbound pool", () => {
+  const content = {
+    questions: [
+      { id: "q-bound", tileIndex: 5, type: "OX", prompt: "5번 칸 전용 문제", options: ["O", "X"], correctAnswer: "O", explanation: "", points: 10, timeLimitSeconds: 10, answerMode: "TURN" },
+      { id: "q-pool", type: "SHORT_ANSWER", prompt: "공용 문제", options: [], correctAnswer: "규장각", explanation: "", points: 20, timeLimitSeconds: 30, answerMode: "TURN" },
+    ],
+    cards: [],
+  };
+  let state = addPlayer(createFixture(), { id: "player-1", nickname: "별빛나침반", now: firstTime });
+  state = startGame(state, "host-1", state.version, firstTime);
+
+  // 5번(QUIZ)칸에 도착하면 칸 고정 문제를 출제하고 풀 커서는 움직이지 않는다.
+  state = rollDice(state, "host-1", 5, state.version, firstTime, content);
+  assert.equal(state.activeQuestion.prompt, "5번 칸 전용 문제");
+  assert.equal(state.questionCursor, 0);
+  state = answerQuestion(state, "host-1", "O", content, state.version, firstTime);
+
+  // 고정 문제가 없는 QUIZ 칸에서는 공용 풀이 순환 배치된다.
+  state = rollDice(state, "player-1", 1, state.version, firstTime, content);
+  assert.equal(state.activeQuestion.prompt, "공용 문제");
+  assert.equal(state.questionCursor, 1);
+  state = answerQuestion(state, "player-1", "규장각", content, state.version, firstTime);
+});
+
+test("prefers tile-bound cards and falls back to the unbound pool", () => {
+  const content = {
+    questions: [],
+    cards: [
+      { id: "c-bound", tileIndex: 4, title: "4번 칸 카드", description: "", effectType: "SCORE_BONUS", effectValue: 3 },
+      { id: "c-pool", title: "공용 카드", description: "", effectType: "EXTRA_TURN", effectValue: 0 },
+    ],
+  };
+  let state = addPlayer(createFixture(), { id: "player-1", nickname: "별빛나침반", now: firstTime });
+  state = startGame(state, "host-1", state.version, firstTime);
+
+  // 4번(EVENT)칸에 도착하면 칸 고정 카드를 적용한다.
+  state = rollDice(state, "host-1", 4, state.version, firstTime, content);
+  assert.equal(state.activeCard.id, "c-bound");
+  assert.equal(state.cardCursor, 0);
+  assert.equal(state.players[0].score, 3);
+
+  // 고정 카드가 없는 BONUS 칸에서는 공용 풀을 사용한다(EXTRA_TURN → 차례 유지).
+  state = rollDice(state, "player-1", 2, state.version, firstTime, content);
+  assert.equal(state.activeCard.id, "c-pool");
+  assert.equal(state.cardCursor, 1);
+  assert.equal(state.currentPlayerId, "player-1");
+});
+
 test("collects simultaneous answers privately and awards team scores", () => {
   let state = createRoomState({
     roomId: "team-room", code: "444444", gameId: "g", gameTitle: "팀 퀴즈",

@@ -11,6 +11,7 @@ export type PreviewArrivalType = TileType | "FINISH";
 const demoQuestion: GameQuestion = {
   id: "test-play-question",
   gameId: "test-play",
+  tileIndex: null,
   type: "MULTIPLE_CHOICE",
   prompt: "정조가 왕실 도서관이자 정책 연구 기관으로 설치한 곳은 어디일까요?",
   options: ["규장각", "성균관", "집현전", "홍문관"],
@@ -27,6 +28,7 @@ const demoQuestion: GameQuestion = {
 const demoCard: GameCard = {
   id: "test-play-card",
   gameId: "test-play",
+  tileIndex: null,
   title: "탐구 노트 발견",
   description: "핵심 개념을 정확히 정리했습니다. 학습 점수를 얻습니다.",
   effectType: "SCORE_BONUS",
