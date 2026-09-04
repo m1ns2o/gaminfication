@@ -21,6 +21,8 @@ export type RoomQuestion = {
   points: number;
   timeLimitSeconds: number;
   answerMode: AnswerMode;
+  /** 문제 이미지 경로 (R2 제공) — 없으면 null */
+  imageUrl?: string | null;
 };
 
 export type RoomQuestionDefinition = RoomQuestion & {
@@ -498,6 +500,7 @@ export function rollDice(
       points: question.points,
       timeLimitSeconds: question.timeLimitSeconds,
       answerMode: question.answerMode,
+      imageUrl: question.imageUrl ?? null,
     };
     const connectedPlayerIds = state.players.filter((player) => player.connected).map((player) => player.id);
     const expectedResponderIds = question.answerMode === "ALL"

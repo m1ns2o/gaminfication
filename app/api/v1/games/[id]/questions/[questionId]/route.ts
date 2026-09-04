@@ -1,4 +1,5 @@
 import { and, count, eq, ne } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 import { getDb } from "../../../../../../../db";
 import { games, questions } from "../../../../../../../db/schema";
 import { normalizeOptionalTileIndex, parseOptions, parseQuestionInput } from "../../../../../../lib/game-content";
@@ -49,9 +50,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const { id, questionId } = await params;
     const db = getDb();
-    const [existing] = await db.select({ id: questions.id }).from(questions).innerJoin(games, eq(questions.gameId, games.id))
+    const [existing] = await db.select({ id: questions.id, imageUrl: questions.imageUrl }).from(questions).innerJoin(games, eq(questions.gameId, games.id))
       .where(and(eq(questions.id, questionId), eq(questions.gameId, id), eq(games.ownerId, ownerId))).limit(1);
     if (!existing) return Response.json({ error: { code: "QUESTION_NOT_FOUND", message: "문제를 찾을 수 없습니다." } }, { status: 404 });
+    if (existing.imageUrl?.startsWith("/media/")) {
+      await env.MEDIA.delete(existing.imageUrl.slice("/media/".length)).catch(() => undefined);
+    }
     await db.delete(questions).where(eq(questions.id, questionId));
     const [{ value: total }] = await db.select({ value: count() }).from(questions).where(eq(questions.gameId, id));
     await db.update(games).set({ questionsCount: total, updatedAt: new Date().toISOString() }).where(eq(games.id, id));

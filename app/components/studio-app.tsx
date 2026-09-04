@@ -5,6 +5,7 @@ import {
   BookOpen,
   Check,
   CircleHelp,
+  ChevronDown,
   Clock3,
   Coffee,
   Copy,
@@ -46,12 +47,11 @@ import { GameBoard, type BoardTileMark } from "./game-board";
 import { ContentEditor } from "./content-editor";
 import { RoomPrompt } from "./room-prompt";
 import { GameSettingsEditor, type EditableGameSettings } from "./game-settings-editor";
-import { TileEditor } from "./tile-editor";
 import { useGameRoom } from "../lib/use-game-room";
 import "../studio.css";
 
 type View = "dashboard" | "library" | "editor" | "room";
-type EditorSection = "settings" | "tiles" | "questions" | "cards";
+type EditorSection = "settings" | "tiles" | "content";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 type JoinRoomInfo = { gameTitle: string; playMode: "INDIVIDUAL" | "TEAM"; teamCount: number };
 type StudioAuth = {
@@ -574,8 +574,6 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [selectedTileIndex, setSelectedTileIndex] = useState(1);
   // 문제/카드 섹션에서 맵 위에 표시할 콘텐츠 표식 (문제·카드 지정됨)
   const [tileMarks, setTileMarks] = useState<BoardTileMark[]>([]);
-  // 문제/카드 섹션의 편집 대상: 맵의 칸(기본) 또는 공용 풀
-  const [contentMode, setContentMode] = useState<"tile" | "pool">("tile");
   // 새 게임 만들기 다이얼로그의 첫 스킨 / 참가 다이얼로그의 팀 선택 (커스텀 드롭다운 값)
   const [createSkin, setCreateSkin] = useState<SkinId>("CAMPUS");
   const [createTemplate, setCreateTemplate] = useState<BoardGeometryId>("LOOP_24");
@@ -592,7 +590,8 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [liveMessage, setLiveMessage] = useState("");
-  const [editorSection, setEditorSection] = useState<EditorSection>("questions");
+  const [editorSection, setEditorSection] = useState<EditorSection>("content");
+  const [stepsCollapsed, setStepsCollapsed] = useState(false);
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const [boardAnimating, setBoardAnimating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
@@ -624,16 +623,34 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   // 에디터 우측 맵 레일 — 섹션에 따라 상호작용 대상 칸이 달라진다.
   const editorTileTypes = tileTypes.length === 24 ? tileTypes : [...defaultTileTypes];
   const editorEditMode = editorSection !== "settings";
-  const currentEditorStep = editorSection === "settings" ? 1 : editorSection === "tiles" ? 3 : editorSection === "questions" ? 4 : editorSection === "cards" ? 5 : 1;
+  const currentEditorStep = editorSection === "settings" ? 1 : 3;
+
+  // 칸 유형을 바꾸면 즉시 저장한다 (칸 편집·콘텐츠 편집이 한 흐름이므로 별도 저장 버튼 불필요).
+  async function saveTileTypes(next: TileType[]) {
+    if (!selectedGame) return;
+    try {
+      const response = await fetch(`/api/v1/games/${selectedGame.id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tileTypes: next }),
+      });
+      const payload = await response.json() as { error?: { message?: string } };
+      if (!response.ok) throw new Error(payload.error?.message ?? "칸 유형을 저장하지 못했습니다.");
+      updateTileTypes(next);
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "칸 유형을 저장하지 못했습니다.");
+    }
+  }
 
   function handleEditorTileClick(index: number) {
-    setContentMode("tile");
     setSelectedTileIndex(index);
   }
 
   function handleEditorTileTypeChange(index: number, type: TileType) {
     if (index === 0) return; // 시작 칸은 고정
-    setTileTypes((current) => current.length === 24 ? current.map((candidate, candidateIndex) => candidateIndex === index ? type : candidate) : current);
+    const next = editorTileTypes.map((candidate, candidateIndex) => candidateIndex === index ? type : candidate);
+    setTileTypes(next);
+    void saveTileTypes(next);
   }
   useEffect(() => {
     let cancelled = false;
@@ -1310,25 +1327,25 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             <div><span>비공개 초안</span><h1>{selectedGame.title}</h1></div>
             <div className="editor-header__actions">
               <span className="save-state"><Check aria-hidden="true" /> 저장됨</span>
-              <button className="button button--quiet" type="button" onClick={() => setEditorSection("tiles")}><Grid2X2 aria-hidden="true" /> 칸 편집</button>
+              <button className="button button--quiet" type="button" onClick={() => setEditorSection("content")}><Grid2X2 aria-hidden="true" /> 문제·카드</button>
               <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Send /> {realtimeBusy ? "준비 중" : "발행 준비"}</button>
             </div>
           </header>
           <div className="editor-layout">
-            <aside className="editor-steps reveal" style={{ "--i": 0 } as React.CSSProperties} aria-label="게임 제작 단계">
+            <aside className={`editor-steps reveal${stepsCollapsed ? " is-collapsed" : ""}`} style={{ "--i": 0 } as React.CSSProperties} aria-label="게임 제작 단계">
               <div className="editor-steps__head">
-                <div><span className="mono-label">STUDIO</span><h2>제작 단계</h2></div>
-                <span className="editor-steps__count">{currentEditorStep}/7</span>
+                <h2>제작 단계</h2>
+                <span className="editor-steps__count">{currentEditorStep}/5</span>
+                <button className="editor-steps__toggle" type="button" onClick={() => setStepsCollapsed((current) => !current)} aria-expanded={!stepsCollapsed} aria-label={stepsCollapsed ? "제작 단계 펼치기" : "제작 단계 접기"}><ChevronDown aria-hidden="true" /></button>
               </div>
               {[
-                ["기본 설정", Check], ["맵 템플릿", Check], ["칸 편집", Check], ["문제 칸", BookOpen],
-                ["카드 칸", Sparkles], ["테스트 플레이", Play], ["발행", Share2],
+                ["기본 설정", Check], ["맵 템플릿", Check], ["문제·카드", BookOpen], ["테스트 플레이", Play], ["발행", Share2],
               ].map(([label, Icon], index) => {
                 const stepNumber = index + 1;
                 const StepIcon = Icon as typeof Check;
                 const isCurrent = stepNumber === currentEditorStep;
-                const isComplete = index < 3 && !isCurrent;
-                return <button key={String(label)} type="button" className={`${isCurrent ? "is-current" : ""}${isComplete ? " is-complete" : ""}${index >= 5 ? " is-future" : ""}`} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("tiles"); else if (index === 3) setEditorSection("questions"); else if (index === 4) setEditorSection("cards"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><span className="step-number" aria-hidden="true">{isComplete ? <Check /> : stepNumber}</span><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
+                const isComplete = index < 2 && !isCurrent;
+                return <button key={String(label)} type="button" className={`${isCurrent ? "is-current" : ""}${isComplete ? " is-complete" : ""}${index >= 3 ? " is-future" : ""}`} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("content"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><span className="step-number" aria-hidden="true">{isComplete ? <Check /> : stepNumber}</span><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
               })}
             </aside>
             <section className="editor-content reveal" style={{ "--i": 1 } as React.CSSProperties} aria-label="편집 내용">
@@ -1352,26 +1369,13 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                   onSaved={updateGameSettings}
                   onMessage={setLiveMessage}
                 />
-              ) : editorSection === "tiles" ? (
-                <TileEditor
-                  key={selectedGame.id}
-                  gameId={selectedGame.id}
-                  tileTypes={tileTypes.length === 24 ? tileTypes : defaultTileTypes}
-                  selectedTileIndex={selectedTileIndex}
-                  onChangeTile={(index, type) => setTileTypes((current) => current.length === 24 ? current.map((candidate, candidateIndex) => candidateIndex === index ? type : candidate) : current)}
-                  onSaved={updateTileTypes}
-                  onMessage={setLiveMessage}
-                />
               ) : (
                 <ContentEditor
                   gameId={selectedGame.id}
                   enabled={persistedGameIds.has(selectedGame.id)}
-                  section={editorSection}
                   tileTypes={editorTileTypes}
                   selectedTileIndex={selectedTileIndex}
-                  contentMode={contentMode}
                   onSelectTile={setSelectedTileIndex}
-                  onContentModeChange={setContentMode}
                   onTileTypeChange={handleEditorTileTypeChange}
                   onMessage={setLiveMessage}
                   onCountsChange={updateContentCounts}
@@ -1381,7 +1385,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             </section>
             <aside className="editor-board reveal" style={{ "--i": 2 } as React.CSSProperties} aria-label="맵 미리보기">
               <div className="editor-board__head">
-                <h2>{editorSection === "tiles" ? "맵 편집 — 칸을 눌러 선택하세요" : editorSection === "questions" ? "문제 칸 — 퀴즈 칸을 선택하세요" : editorSection === "cards" ? "카드 칸 — 이벤트·보너스 칸을 선택하세요" : "맵 미리보기"}</h2>
+                <h2>{editorSection === "content" ? "문제·카드 — 맵에서 칸을 선택하세요" : "맵 미리보기"}</h2>
                 <span className="editor-board__skin"><Palette aria-hidden="true" /> {skinNames[skin]}</span>
               </div>
               <GameBoard
@@ -1398,13 +1402,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 tileMarks={tileMarks}
               />
               <p className="editor-board__hint">
-                {editorSection === "tiles"
-                  ? "맵에서 칸을 눌러 선택하고, 왼쪽 편집기에서 유형을 바꿔 보세요.「칸 저장」을 누르면 이후 만드는 방부터 적용됩니다."
-                  : editorSection === "questions"
-                    ? "맵에서 칸을 눌러 문제를 입력하세요. 왼쪽의 칸 유형 드롭다운으로 어떤 칸이든 퀴즈 칸으로 바꿀 수 있어요."
-                    : editorSection === "cards"
-                      ? "맵에서 칸을 눌러 카드를 입력하세요. 왼쪽의 칸 유형 드롭다운으로 어떤 칸이든 이벤트 칸으로 바꿀 수 있어요."
-                      : `문제 ${selectedGame.questions}개와 카드 ${selectedGame.cards}개가 지정한 칸에서 출제됩니다.`}
+                {editorSection === "content"
+                  ? "칸을 누르면 유형과 문제·카드를 함께 편집합니다. 유형 변경은 자동 저장돼요."
+                  : "지정한 칸에서 문제와 카드가 출제됩니다."}
               </p>
             </aside>
           </div>

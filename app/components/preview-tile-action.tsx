@@ -12,6 +12,7 @@ const demoQuestion: GameQuestion = {
   id: "test-play-question",
   gameId: "test-play",
   tileIndex: null,
+  imageUrl: null,
   type: "MULTIPLE_CHOICE",
   prompt: "정조가 왕실 도서관이자 정책 연구 기관으로 설치한 곳은 어디일까요?",
   options: ["규장각", "성균관", "집현전", "홍문관"],

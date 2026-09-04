@@ -74,6 +74,8 @@ export const questions = sqliteTable("questions", {
   gameId: text("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
   // 특정 보드 칸에 고정된 문제(칸-문제 연결) — null이면 공용 풀(순환 배치)
   tileIndex: integer("tile_index"),
+  // R2에 업로드한 문제 이미지 제공 경로 (예: /media/q-xxx.png)
+  imageUrl: text("image_url"),
   type: text("type", { enum: ["MULTIPLE_CHOICE", "SHORT_ANSWER", "OX"] }).notNull(),
   prompt: text("prompt").notNull(),
   optionsJson: text("options_json").notNull().default("[]"),

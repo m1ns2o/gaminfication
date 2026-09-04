@@ -98,6 +98,7 @@ export async function POST(request: Request) {
           timeLimitSeconds: question.timeLimitSeconds,
           answerMode: question.answerMode,
           tileIndex: question.tileIndex,
+          imageUrl: question.imageUrl ?? null,
         })),
         cards: gameCards.map((card) => ({
           id: card.id,

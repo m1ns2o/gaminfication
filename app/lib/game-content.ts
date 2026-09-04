@@ -6,6 +6,7 @@ export type GameQuestion = {
   id: string;
   gameId: string;
   tileIndex: number | null;
+  imageUrl: string | null;
   type: QuestionType;
   prompt: string;
   options: string[];
@@ -32,7 +33,7 @@ export type GameCard = {
   updatedAt: string;
 };
 
-export type QuestionInput = Pick<GameQuestion, "type" | "prompt" | "options" | "correctAnswer" | "explanation" | "points" | "timeLimitSeconds" | "answerMode">;
+export type QuestionInput = Pick<GameQuestion, "type" | "prompt" | "options" | "correctAnswer" | "explanation" | "points" | "timeLimitSeconds" | "answerMode" | "imageUrl">;
 export type CardInput = Pick<GameCard, "title" | "description" | "effectType" | "effectValue">;
 
 const questionTypes: QuestionType[] = ["MULTIPLE_CHOICE", "SHORT_ANSWER", "OX"];
@@ -90,6 +91,8 @@ export function parseQuestionInput(value: unknown): QuestionInput {
     points: boundedInteger(payload.points, 10, 1, 100),
     timeLimitSeconds: boundedInteger(payload.timeLimitSeconds, 30, 5, 300),
     answerMode: payload.answerMode === "ALL" ? "ALL" : "TURN",
+    // 이미지는 앱이 제공하는 경로(/media/...)만 허용한다.
+    imageUrl: typeof payload.imageUrl === "string" && payload.imageUrl.startsWith("/media/") ? payload.imageUrl.slice(0, 400) : null,
   };
 }
 

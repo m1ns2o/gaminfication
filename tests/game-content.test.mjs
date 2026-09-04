@@ -17,8 +17,7 @@ test("validates multiple choice, short answer, and O/X question formats", () => 
   assert.equal(multiple.answerMode, "ALL");
 
   const short = parseQuestionInput({ type: "SHORT_ANSWER", prompt: "정답을 쓰세요.", correctAnswer: "규장각" });
-  assert.deepEqual(short.options, []);
-  assert.equal(short.answerMode, "TURN");
+  assert.deepEqual(short.options, []);  assert.equal(short.answerMode, "TURN");
 
   const ox = parseQuestionInput({ type: "OX", prompt: "정조는 규장각을 설치했다.", correctAnswer: "o" });
   assert.equal(ox.correctAnswer, "O");
@@ -36,4 +35,25 @@ test("rejects invalid answers and normalizes educational card effects", () => {
   assert.equal(move.effectValue, 12);
   const extraTurn = parseCardInput({ title: "한 번 더", effectType: "EXTRA_TURN", effectValue: 10 });
   assert.equal(extraTurn.effectValue, 0);
+});
+
+test("accepts only app-served image paths for questions", () => {
+  const withImage = parseQuestionInput({
+    type: "OX",
+    prompt: "그림을 보고 답하세요.",
+    correctAnswer: "O",
+    imageUrl: "/media/q-abc123.png",
+  });
+  assert.equal(withImage.imageUrl, "/media/q-abc123.png");
+
+  const external = parseQuestionInput({
+    type: "OX",
+    prompt: "외부 주소는 거절",
+    correctAnswer: "O",
+    imageUrl: "https://evil.example/x.png",
+  });
+  assert.equal(external.imageUrl, null);
+
+  const empty = parseQuestionInput({ type: "OX", prompt: "이미지 없음", correctAnswer: "X", imageUrl: "" });
+  assert.equal(empty.imageUrl, null);
 });

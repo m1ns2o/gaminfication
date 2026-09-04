@@ -104,6 +104,8 @@ export function RoomPrompt({
       <section className="room-prompt room-prompt--question" aria-labelledby="live-question-heading">
         <div className="room-prompt__meta"><span><CircleHelp aria-hidden="true" /> {question.answerMode === "ALL" ? `전원 동시 · ${state.submittedPlayerIds.length}/${state.expectedResponderIds.length} 제출` : "현재 차례"} · {question.points}점</span><span className={remainingSeconds <= 5 ? "is-urgent" : ""}>{remainingSeconds}초</span></div>
         <h3 id="live-question-heading">{question.prompt}</h3>
+        {/* eslint-disable-next-line @next/next/no-img-element -- 플레이 화면 문제 이미지(R2 제공) */}
+        {question.imageUrl ? <img className="room-prompt__image" src={question.imageUrl} alt="문제 이미지" /> : null}
         {!canAnswer && <p>{question.answerMode === "ALL" ? "답안을 제출했습니다. 다른 참가자의 제출을 기다립니다." : "현재 차례 참가자가 답을 고르고 있습니다."}</p>}
         {canAnswer && question.type === "MULTIPLE_CHOICE" && <div className="room-answer-options">{question.options.map((option, index) => <button key={`${index}-${option}`} type="button" onClick={() => onAnswer(option)}><span>{index + 1}</span>{option}</button>)}</div>}
         {canAnswer && question.type === "OX" && <div className="room-answer-options room-answer-options--ox">{["O", "X"].map((option) => <button key={option} type="button" onClick={() => onAnswer(option)}>{option}</button>)}</div>}
