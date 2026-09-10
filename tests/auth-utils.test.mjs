@@ -19,7 +19,7 @@ test("keeps OAuth return paths on the application origin", () => {
 });
 
 test("accepts state-changing auth requests only from the same origin", () => {
-  assert.equal(validAuthOrigin(new Request("https://classloop.example/api/v1/auth/logout", { headers: { origin: "https://classloop.example" } })), true);
-  assert.equal(validAuthOrigin(new Request("https://classloop.example/api/v1/auth/logout", { headers: { origin: "https://evil.example" } })), false);
-  assert.equal(validAuthOrigin(new Request("https://classloop.example/api/v1/auth/logout")), false);
+  assert.equal(validAuthOrigin(new Request("https://boardrun.example/api/v1/auth/logout", { headers: { origin: "https://boardrun.example" } })), true);
+  assert.equal(validAuthOrigin(new Request("https://boardrun.example/api/v1/auth/logout", { headers: { origin: "https://evil.example" } })), false);
+  assert.equal(validAuthOrigin(new Request("https://boardrun.example/api/v1/auth/logout")), false);
 });

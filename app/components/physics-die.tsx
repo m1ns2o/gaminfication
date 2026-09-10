@@ -32,7 +32,7 @@ function Face({ value, side }: { value: number; side: string }) {
   );
 }
 
-export function PhysicsDie({ value, rollKey }: { value: number; rollKey: number }) {
+export function PhysicsDie({ value, rollKey, phase = "rolling" }: { value: number; rollKey: number; phase?: "rolling" | "result" }) {
   const style = {
     "--die-final": landingRotation[value] ?? landingRotation[1],
     "--die-tilt": `${(rollKey % 2 ? 1 : -1) * 18}deg`,
@@ -45,7 +45,7 @@ export function PhysicsDie({ value, rollKey }: { value: number; rollKey: number 
       <span className="physics-die-stage__burst">
         {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
       </span>
-      <span key={rollKey} className="physics-die-orbit" style={style}>
+      <span key={rollKey} className={`physics-die-orbit${phase === "result" ? " is-settling" : " is-rolling"}`} style={style}>
         <span className="physics-die">
           <Face value={1} side="front" />
           <Face value={2} side="top" />

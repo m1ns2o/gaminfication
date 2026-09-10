@@ -19,11 +19,13 @@ export function RoomPrompt({
   canAnswer,
   onAnswer,
   viewerId,
+  onDismiss,
 }: {
   state: GameRoomState;
   canAnswer: boolean;
   onAnswer: (answer: string) => void;
   viewerId: string | null;
+  onDismiss?: () => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [detailedResponses, setDetailedResponses] = useState<DetailedResponse[]>([]);
@@ -95,6 +97,7 @@ export function RoomPrompt({
           return <li key={player.id} className={state.winnerIds.includes(player.id) ? "is-winner" : ""}><strong>{displayRank}</strong><span><b>{player.nickname}</b><small>{player.teamNumber ? `${player.teamNumber}팀 · ` : ""}{player.correctAnswers}/{player.answersCount} 정답</small></span><em>{player.teamNumber ? `팀 ${state.teamScores[String(player.teamNumber)] ?? 0}점` : `${player.score}점`}</em></li>;
         })}</ol>
         {viewerIsHost && <div className="room-results__details"><h4>문항별 학습 결과</h4>{questionSummaries.length === 0 ? <p>상세 응답을 정리하고 있습니다.</p> : <ul>{questionSummaries.map(([sequence, summary]) => <li key={sequence}><span><b>{summary.prompt}</b><small>{summary.correct}/{summary.total}명 정답 · 시간 초과 {summary.timedOut}명</small></span><em>평균 {(summary.responseTimeMs / summary.total / 1000).toFixed(1)}초</em></li>)}</ul>}</div>}
+        {onDismiss && <button className="button button--quiet" type="button" onClick={onDismiss}>결과 닫기</button>}
       </section>
     );
   }

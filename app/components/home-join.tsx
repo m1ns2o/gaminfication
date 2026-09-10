@@ -89,9 +89,9 @@ export function HomeJoin({ initialCode = "" }: { initialCode?: string }) {
   return (
     <main className="home-join">
       <header className="home-join__brand">
-        <Link href="/" className="home-join__logo" aria-label="Classloop 홈">
-          <span className="home-join__logo-glyph" aria-hidden="true">C</span>
-          <strong>CLASSLOOP</strong>
+        <Link href="/" className="home-join__logo" aria-label="보드런 홈">
+          <span className="home-join__logo-glyph" aria-hidden="true">B</span>
+          <strong>BOARDRUN</strong>
         </Link>
         <div className="home-join__brand-actions">
           <Link className="home-join__teacher-link" href="/studio">

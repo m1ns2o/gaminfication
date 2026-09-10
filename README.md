@@ -1,4 +1,4 @@
-# Classloop
+# 보드런 BoardRun
 
 교사가 게임을 만들고 학생이 6자리 코드로 참여하는 실시간 수업용 보드게임입니다. React 19 기반 UI를 vinext로 빌드하고 Cloudflare Workers, Durable Objects, D1에서 실행합니다.
 
@@ -41,7 +41,7 @@ npm run dev
 Google Cloud Console에서 **웹 애플리케이션** OAuth 클라이언트를 만들고 승인된 리디렉션 URI에 다음 주소를 등록합니다.
 
 - 로컬: `http://localhost:3000/api/v1/auth/google/callback`
-- 운영: `https://<서비스 도메인>/api/v1/auth/google/callback`
+- 운영: `https://boardrun.boardrun.workers.dev/api/v1/auth/google/callback`
 
 로컬에서는 `.dev.vars.example`을 `.dev.vars`로 복사해 실제 값을 입력합니다. 운영 비밀키는 소스나 `wrangler.jsonc`에 넣지 않고 다음 명령으로 등록합니다.
 
@@ -68,7 +68,7 @@ npm run db:migrate:remote
 - `npm run db:migrate:local`: 로컬 D1 마이그레이션 적용
 - `npm run db:migrate:remote`: 운영 D1에 새 OAuth 계정 연결 테이블을 적용
 
-실시간 로컬 통합 테스트는 먼저 `npm run dev`를 실행한 상태에서 별도 터미널에서 `npm run test:realtime:local`로 실행합니다. 테스트 실행기는 `localhost`만 허용하며 운영 인증을 우회하는 API를 만들지 않습니다. 배포 환경을 검사할 때는 로그인한 브라우저의 세션 토큰을 `CLASSLOOP_TEST_SESSION_TOKEN`에 명시적으로 전달한 뒤 `npm run test:realtime`을 사용합니다.
+실시간 로컬 통합 테스트는 먼저 `npm run dev`를 실행한 상태에서 별도 터미널에서 `npm run test:realtime:local`로 실행합니다. 테스트 실행기는 `localhost`만 허용하며 운영 인증을 우회하는 API를 만들지 않습니다. 배포 환경을 검사할 때는 로그인한 브라우저의 세션 토큰을 `BOARDRUN_TEST_SESSION_TOKEN`에 명시적으로 전달한 뒤 `npm run test:realtime`을 사용합니다.
 
 ## Realtime implementation
 

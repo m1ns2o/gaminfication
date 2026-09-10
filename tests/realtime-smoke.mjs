@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
-const baseUrl = process.env.CLASSLOOP_BASE_URL ?? "http://localhost:3000";
-const teacherSessionToken = process.env.CLASSLOOP_TEST_SESSION_TOKEN?.trim();
+const baseUrl = process.env.BOARDRUN_BASE_URL ?? "http://localhost:3000";
+const teacherSessionToken = (process.env.BOARDRUN_TEST_SESSION_TOKEN ?? "").trim();
 
 if (!teacherSessionToken) {
-  throw new Error("CLASSLOOP_TEST_SESSION_TOKEN is required. For local testing, run `npm run test:realtime:local`.");
+  throw new Error("BOARDRUN_TEST_SESSION_TOKEN is required. For local testing, run `npm run test:realtime:local`.");
 }
 
 async function requestJson(path, init) {
@@ -16,7 +16,7 @@ async function requestJson(path, init) {
 
 function withTeacherAuth(init = {}) {
   const headers = new Headers(init.headers);
-  headers.set("cookie", `classloop_teacher_session=${encodeURIComponent(teacherSessionToken)}`);
+  headers.set("cookie", `boardrun_teacher_session=${encodeURIComponent(teacherSessionToken)}`);
   return { ...init, headers };
 }
 

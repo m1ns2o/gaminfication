@@ -345,7 +345,7 @@ export function GameBoard({
   const displayedTokens = editMode ? [] : compact ? tokens : tokens.map((token) => ({ ...token, position: displayedPositions[token.id] ?? token.position }));
   const movingToken = !editMode && movingTokenId ? displayedTokens.find((token) => token.id === movingTokenId) ?? null : null;
   const landedType = landedIndex === null ? null : tileTypes?.[landedIndex] ?? geometry.tiles[landedIndex].type;
-  const rollControl = !compact && !editMode ? (
+  const rollControl = !compact && !editMode && onRoll ? (
     <div className="board-roll-control">
       <button className="dice-button" type="button" onClick={handleRoll} disabled={!onRoll || rolling || Boolean(movingTokenId)} aria-label={rolling ? "주사위 굴리는 중" : "주사위 굴리기"} aria-busy={rolling} data-state={rolling ? "loading" : landedType ? "success" : "default"}>
         <Dices aria-hidden="true" />
@@ -355,7 +355,7 @@ export function GameBoard({
   ) : null;
   const diceOverlay = rolling && !compact && !editMode ? (
     <div className="dice-roll-overlay" role="status" aria-label={rollPhase === "result" ? `주사위 결과 ${lastRoll}` : "주사위를 굴리는 중"} data-phase={rollPhase}>
-      <PhysicsDie value={lastRoll} rollKey={rollCycle} />
+      <PhysicsDie value={lastRoll} rollKey={rollCycle} phase={rollPhase} />
       <strong>{rollPhase === "result" ? <>주사위 결과 <b>{lastRoll}</b></> : "주사위가 굴러갑니다"}</strong>
     </div>
   ) : null;
@@ -375,8 +375,8 @@ export function GameBoard({
           {editMode ? (
             <>
               <span className="mono-label">MAP STUDIO</span>
-              <strong>{selectedTileIndex != null && selectedTileType ? `${selectedTileIndex + 1}번 칸 · ${tileTypeLabels[selectedTileType]}` : "맵 미리보기"}</strong>
-              <span>{selectedTileIndex != null ? "아래 패널에서 역할을 바꿔 보세요" : "수정할 칸을 눌러 주세요"}</span>
+              <strong>{selectedTileIndex != null && selectedTileType ? `${selectedTileIndex + 1}번 · ${tileTypeLabels[selectedTileType]}` : "맵 미리보기"}</strong>
+              <span>{selectedTileIndex != null ? "아래에서 유형 변경" : "칸을 눌러 선택"}</span>
             </>
           ) : (
             <>

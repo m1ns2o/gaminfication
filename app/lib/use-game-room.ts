@@ -11,16 +11,23 @@ type RoomSessionResponse = {
   realtime: { ticket: string; websocketPath: string };
 };
 
-const ROOM_SESSION_KEY = "classloop:active-room-session:v1";
+const ROOM_SESSION_KEY = "boardrun:active-room-session:v1";
+const DISMISSED_ROOM_IDS_KEY = "boardrun:dismissed-room-ids:v1";
+const MAX_DISMISSED_IDS = 20;
 
 // sessionStorage를 사용해 같은 탭(SPA 뷰 전환) 안에서 방 세션을 유지합니다.
-function readRoomSession(): RoomSessionResponse | null {
+function readStoredJson(key: string): unknown {
   try {
-    const stored = window.sessionStorage.getItem(ROOM_SESSION_KEY);
-    return stored ? JSON.parse(stored) as RoomSessionResponse : null;
+    const stored = window.sessionStorage.getItem(key);
+    return stored ? JSON.parse(stored) as unknown : null;
   } catch {
     return null;
   }
+}
+
+function readRoomSession(): RoomSessionResponse | null {
+  const stored = readStoredJson(ROOM_SESSION_KEY);
+  return stored ? stored as RoomSessionResponse : null;
 }
 
 function writeRoomSession(session: RoomSessionResponse) {
@@ -29,6 +36,32 @@ function writeRoomSession(session: RoomSessionResponse) {
   } catch {
     // The live connection still works when browser storage is unavailable.
   }
+}
+
+function clearRoomSession() {
+  try {
+    window.sessionStorage.removeItem(ROOM_SESSION_KEY);
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
+function readDismissedRoomIds(): string[] {
+  const parsed = readStoredJson(DISMISSED_ROOM_IDS_KEY) ?? [];
+  return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+}
+
+function markRoomDismissed(roomId: string) {
+  try {
+    const next = [roomId, ...readDismissedRoomIds().filter((id) => id !== roomId)].slice(0, MAX_DISMISSED_IDS);
+    window.sessionStorage.setItem(DISMISSED_ROOM_IDS_KEY, JSON.stringify(next));
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
+function isRoomDismissed(roomId: string) {
+  return readDismissedRoomIds().includes(roomId);
 }
 
 async function readRoomResponse(response: Response): Promise<RoomSessionResponse> {
@@ -68,6 +101,21 @@ export function useGameRoom() {
     clearTimers();
     socketRef.current?.close(1000, "Client disconnected");
     socketRef.current = null;
+    setStatus("idle");
+  }, [clearTimers]);
+
+  const leaveRoom = useCallback((roomId?: string | null) => {
+    if (roomId) markRoomDismissed(roomId);
+    clearRoomSession();
+    manualCloseRef.current = true;
+    generationRef.current += 1;
+    clearTimers();
+    socketRef.current?.close(1000, "Client left room");
+    socketRef.current = null;
+    setRoomState(null);
+    setParticipantId(null);
+    setRoomCode(null);
+    setError(null);
     setStatus("idle");
   }, [clearTimers]);
 
@@ -140,7 +188,9 @@ export function useGameRoom() {
   useEffect(() => {
     let cancelled = false;
     const session = readRoomSession();
-    if (session) {
+    if (session && isRoomDismissed(session.room.id)) {
+      clearRoomSession();
+    } else if (session) {
       window.queueMicrotask(() => {
         if (!cancelled) connect(session);
       });
@@ -247,5 +297,6 @@ export function useGameRoom() {
     answer,
     end,
     disconnect,
+    leaveRoom,
   };
 }

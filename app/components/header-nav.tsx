@@ -22,8 +22,8 @@ export function HeaderNav({
   return (
     <header className="nav-slab">
       <button className="slab-mark" type="button" onClick={() => onView("dashboard")}>
-        <span className="slab-mark__glyph" aria-hidden="true">C</span>
-        <span>CLASSLOOP</span>
+        <span className="slab-mark__glyph" aria-hidden="true">B</span>
+        <span>BOARDRUN</span>
       </button>
       <nav className="slab-nav" aria-label="주요 메뉴">
         <button type="button" aria-current={view === "dashboard" ? "page" : undefined} onClick={() => onView("dashboard")}>내 게임</button>

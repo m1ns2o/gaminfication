@@ -28,7 +28,6 @@ import {
   RotateCcw,
   Search,
   SearchX,
-  Send,
   Settings,
   Share2,
   Sparkles,
@@ -51,7 +50,7 @@ import { useGameRoom } from "../lib/use-game-room";
 import "../studio.css";
 
 type View = "dashboard" | "library" | "editor" | "room";
-type EditorSection = "settings" | "tiles" | "content";
+type EditorSection = "settings" | "content" | "playtest" | "publish";
 type GameStatus = "DRAFT" | "PUBLISHED" | "PENDING_REVIEW";
 type JoinRoomInfo = { gameTitle: string; playMode: "INDIVIDUAL" | "TEAM"; teamCount: number };
 type StudioAuth = {
@@ -378,10 +377,12 @@ function GameListItem({
 type PlayerViewProps = {
   realtime: ReturnType<typeof useGameRoom>;
   gameTitle: string;
+  hiddenRoomId: string | null;
+  onDismissRoom: (roomId: string) => void;
 };
 
 // 학생(참가자) 전용 화면 — 게임에 필요한 부분만 표시하고 편집·관리 UI는 숨김
-function PlayerView({ realtime, gameTitle }: PlayerViewProps) {
+function PlayerView({ realtime, gameTitle, hiddenRoomId, onDismissRoom }: PlayerViewProps) {
   const { roomState, participantId, canRoll, canAnswer, roomCode } = realtime;
   const [boardAnimating, setBoardAnimating] = useState(false);
   const me = roomState?.players.find((player) => player.id === participantId);
@@ -447,15 +448,34 @@ function PlayerView({ realtime, gameTitle }: PlayerViewProps) {
             onAnimationStateChange={setBoardAnimating}
           />
 
-          {roomState && roomState.status !== "LOBBY" && !boardAnimating && (
-            <div className="play-stage__overlay">
+          {roomState && roomState.status !== "LOBBY" && (
+            <div
+              className={`play-stage__overlay${roomState.status === "FINALIZED" && hiddenRoomId === roomState.roomId ? " is-dismissed" : ""}`}
+              style={roomState.status !== "FINALIZED" && boardAnimating ? { display: "none" } : undefined}
+              role={roomState.status === "FINALIZED" ? "button" : undefined}
+              tabIndex={roomState.status === "FINALIZED" ? 0 : undefined}
+              aria-label={roomState.status === "FINALIZED" ? "결과 모달 닫기" : undefined}
+              onClick={() => {
+                if (roomState.status === "FINALIZED") onDismissRoom(roomState.roomId);
+              }}
+              onKeyDown={(event) => {
+                if (roomState.status !== "FINALIZED") return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onDismissRoom(roomState.roomId);
+                }
+              }}
+            >
+              {roomState.status === "FINALIZED" && hiddenRoomId === roomState.roomId ? null : (
               <RoomPrompt
                 key={roomState.activeQuestion?.id ?? roomState.lastEvent.type}
                 state={roomState}
                 canAnswer={canAnswer}
                 onAnswer={realtime.answer}
                 viewerId={participantId}
+                onDismiss={() => onDismissRoom(roomState.roomId)}
               />
+              )}
             </div>
           )}
         </div>
@@ -507,8 +527,8 @@ function HeaderNav({
   return (
     <header className="nav-slab">
       <button className="slab-mark" type="button" onClick={() => onView("dashboard")}>
-        <span className="slab-mark__glyph" aria-hidden="true">C</span>
-        <span>CLASSLOOP</span>
+        <span className="slab-mark__glyph" aria-hidden="true">B</span>
+        <span>BOARDRUN</span>
       </button>
       <nav className="slab-nav" aria-label="주요 메뉴">
         <button type="button" aria-current={view === "dashboard" ? "page" : undefined} onClick={() => onView("dashboard")}>내 게임</button>
@@ -562,6 +582,28 @@ function HeaderNav({
 // 데이터 영역(게임 목록·보드)에만 스켈레톤을 채운다.
 export function StudioApp({ auth }: { auth: StudioAuth }) {
   const realtime = useGameRoom();
+  const [resultHiddenForRoomId, setResultHiddenForRoomId] = useState<string | null>(() => {
+    try {
+      const stored = window.sessionStorage.getItem("boardrun:dismissed-room-ids:v1");
+      const parsed = stored ? JSON.parse(stored) as unknown : [];
+      return Array.isArray(parsed) && typeof parsed[0] === "string" ? parsed[0] as string : null;
+    } catch {
+      return null;
+    }
+  });
+  function dismissRoomResult(roomId: string) {
+    setResultHiddenForRoomId(roomId);
+    realtime.leaveRoom(roomId);
+  }
+  const lastSeenRoomStatusRef = useRef(realtime.roomState?.status ?? null);
+  useEffect(() => {
+    const current = realtime.roomState;
+    const previous = lastSeenRoomStatusRef.current;
+    lastSeenRoomStatusRef.current = current?.status ?? null;
+    if (!current || !resultHiddenForRoomId) return;
+    if (current.roomId !== resultHiddenForRoomId) return;
+    if (previous === "FINALIZED" && current.status !== "FINALIZED") setResultHiddenForRoomId(null);
+  }, [realtime.roomState, resultHiddenForRoomId]);
   const [view, setView] = useState<View>("dashboard");
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
@@ -593,10 +635,12 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   const [editorSection, setEditorSection] = useState<EditorSection>("content");
   const [stepsCollapsed, setStepsCollapsed] = useState(false);
   const [realtimeBusy, setRealtimeBusy] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
   const [boardAnimating, setBoardAnimating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const clientIdSequence = useRef(1);
+  const startedTestPlayRef = useRef(false);
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? games[0] ?? null;
   // 현재 사용자가 참가자(학생)면 게임 전용 화면으로 전환
@@ -622,8 +666,17 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
 
   // 에디터 우측 맵 레일 — 섹션에 따라 상호작용 대상 칸이 달라진다.
   const editorTileTypes = tileTypes.length === 24 ? tileTypes : [...defaultTileTypes];
-  const editorEditMode = editorSection !== "settings";
-  const currentEditorStep = editorSection === "settings" ? 1 : 3;
+  const editorEditMode = editorSection === "content";
+  const currentEditorStep = editorSection === "settings" ? 1 : editorSection === "content" ? 2 : editorSection === "playtest" ? 3 : 4;
+  const editorBoardHeading =
+    editorSection === "content" ? "칸 선택"
+    : editorSection === "playtest" ? "테스트 플레이"
+    : editorSection === "publish" ? "발행 미리보기"
+    : "맵 미리보기";
+  const editorBoardHint =
+    editorSection === "content"
+      ? "칸을 눌러 편집"
+      : "지정된 칸에서 출제";
 
   // 칸 유형을 바꾸면 즉시 저장한다 (칸 편집·콘텐츠 편집이 한 흐름이므로 별도 저장 버튼 불필요).
   async function saveTileTypes(next: TileType[]) {
@@ -674,6 +727,18 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
   }, []);
 
   // 공유마당은 서버(/api/v1/library)에서 조회한 발행 게임만 보여줍니다.
+  async function refreshLibrary() {
+    try {
+      const response = await fetch("/api/v1/library");
+      const payload = await response.json() as { games?: LibraryGame[] };
+      setLibraryGames(payload.games ?? []);
+    } catch {
+      // 실패 시 기존 목록 유지
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     void fetch("/api/v1/library")
@@ -849,6 +914,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
       setGames((current) => current.some((candidate) => candidate.id === saved.id) ? current : [saved, ...current]);
       selectGame(saved);
       setCreateOpen(false);
+      setEditorSection("settings");
       setView("editor");
       setLiveMessage(`${title} 비공개 초안을 만들었습니다.`);
     } catch (error) {
@@ -911,6 +977,55 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     }
   }
 
+  async function startTestPlay() {
+    if (realtimeBusy) return;
+    if (!auth.user) {
+      window.location.assign(auth.signInPath);
+      return;
+    }
+    if (!selectedGame) return;
+    setRealtimeBusy(true);
+    try {
+      const game = await saveGame(selectedGame);
+      await realtime.createRoom(game.id);
+      // 방 연결이 열리면 자동으로 START_GAME을 보내 대시보드에서 바로 조작한다.
+      startedTestPlayRef.current = true;
+      setView("dashboard");
+      setLiveMessage("테스트 플레이 방을 열었습니다. 게임을 시작합니다.");
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "테스트 플레이를 시작하지 못했습니다.");
+    } finally {
+      setRealtimeBusy(false);
+    }
+  }
+
+  async function publishGame() {
+    if (publishBusy) return;
+    if (!selectedGame) return;
+    setPublishBusy(true);
+    try {
+      const game = await saveGame(selectedGame);
+      const response = await fetch(`/api/v1/games/${game.id}/publish`, { method: "POST" });
+      const payload = await response.json() as { error?: { message?: string } };
+      if (!response.ok) throw new Error(payload.error?.message ?? "게임을 발행하지 못했습니다.");
+      setGames((current) => current.map((candidate) => candidate.id === game.id ? { ...candidate, status: "PUBLISHED", visibility: "PUBLIC", updated: "방금 전" } : candidate));
+      setLiveMessage(`${game.title}을(를) 공유마당에 발행했습니다.`);
+      void refreshLibrary();
+    } catch (error) {
+      setLiveMessage(error instanceof Error ? error.message : "게임을 발행하지 못했습니다.");
+    } finally {
+      setPublishBusy(false);
+    }
+  }
+
+  // 테스트 플레이: 방 연결이 열리고 로비 상태가 되면 게임을 자동 시작한다.
+  const { status: roomConnectionStatus, roomState: roomConnectionState, start: startRoom } = realtime;
+  useEffect(() => {
+    if (!startedTestPlayRef.current || roomConnectionStatus !== "open" || roomConnectionState?.status !== "LOBBY") return;
+    startRoom();
+    startedTestPlayRef.current = false;
+  }, [roomConnectionStatus, roomConnectionState, startRoom]);
+
   async function joinRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (realtimeBusy) return;
@@ -928,10 +1043,114 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
     }
   }
 
+  function renderEditorBody() {
+    if (!selectedGame) return null;
+    if (editorSection === "settings") {
+      return (
+        <GameSettingsEditor
+          key={selectedGame.id}
+          game={{
+            id: selectedGame.id,
+            title: selectedGame.title,
+            description: selectedGame.description,
+            subject: selectedGame.subject,
+            grade: selectedGame.grade,
+            template: selectedGame.template,
+            skin: selectedGame.skin,
+            victoryMode: selectedGame.victoryMode ?? "AUTO",
+            targetScore: selectedGame.targetScore ?? 100,
+            maxRounds: selectedGame.maxRounds ?? 10,
+            playMode: selectedGame.playMode ?? "INDIVIDUAL",
+            teamCount: selectedGame.teamCount ?? 2,
+          }}
+          onSaved={updateGameSettings}
+          onMessage={setLiveMessage}
+        />
+      );
+    }
+    if (editorSection === "content") {
+      return (
+        <ContentEditor
+          gameId={selectedGame.id}
+          enabled={persistedGameIds.has(selectedGame.id)}
+          tileTypes={editorTileTypes}
+          selectedTileIndex={selectedTileIndex}
+          onSelectTile={setSelectedTileIndex}
+          onTileTypeChange={handleEditorTileTypeChange}
+          onMessage={setLiveMessage}
+          onCountsChange={updateContentCounts}
+          onMarksChange={setTileMarks}
+        />
+      );
+    }
+    if (editorSection === "playtest") {
+      return (
+        <section className="question-editor playtest-editor" aria-labelledby="playtest-heading">
+          <div className="question-editor__head">
+            <div>
+              <h2 id="playtest-heading">테스트 플레이</h2>
+              <p>학생 없이 보드를 직접 굴려 점검합니다.</p>
+            </div>
+            <span className="status-badge status-badge--draft">미리보기</span>
+          </div>
+          <div className="answer-preview">
+            <Play aria-hidden="true" />
+            <span>
+              <strong>{selectedGame.title}</strong>
+              <small>{boardGeometries[selectedGame.template].name} · {skinNames[selectedGame.skin]} · 문제 {selectedGame.questions} · 카드 {selectedGame.cards}</small>
+            </span>
+          </div>
+          <div className="preview-action preview-action--quiz">
+            <div className="preview-action__head">
+              <Play aria-hidden="true" />
+              <h3>진행자로 바로 시작</h3>
+            </div>
+            <p className="preview-action__copy">방이 열리면 자동 시작됩니다.</p>
+            <button className="button button--primary button--full" type="button" onClick={() => void startTestPlay()} disabled={realtimeBusy || !auth.user}><Play aria-hidden="true" /> {realtimeBusy ? "준비 중" : "테스트 플레이 시작"}</button>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <section className="question-editor publish-editor" aria-labelledby="publish-heading">
+        <div className="question-editor__head">
+          <div>
+            <h2 id="publish-heading">발행</h2>
+            <p>{selectedGame.status === "PUBLISHED" ? "공유마당에 이미 공개되었습니다." : "공유마당에 공개해 다른 선생님들과 나눕니다."}</p>
+          </div>
+          <span className={`status-badge ${selectedGame.status === "PUBLISHED" ? "status-badge--published" : "status-badge--draft"}`}>{statusText(selectedGame.status)}</span>
+        </div>
+        <div className="answer-preview">
+          <Share2 aria-hidden="true" />
+          <span>
+            <strong>{selectedGame.title}</strong>
+            <small>{boardGeometries[selectedGame.template].name} · {skinNames[selectedGame.skin]} · {selectedGame.subject} · {selectedGame.grade}</small>
+          </span>
+        </div>
+        <div className="content-counts" style={{ marginBlockStart: "var(--space-sm)" }}>
+          <span><BookOpen aria-hidden="true" /> 문제 {selectedGame.questions} · 카드 {selectedGame.cards}</span>
+          <span>{selectedGame.visibility === "PUBLIC" ? <><Globe2 aria-hidden="true" /> 전체 공개</> : <><LockKeyhole aria-hidden="true" /> 비공개 초안</>}</span>
+        </div>
+        <div className="preview-action preview-action--share" style={{ marginBlockStart: 0 }}>
+          <div className="preview-action__head">
+            {selectedGame.status === "PUBLISHED" ? <Globe2 aria-hidden="true" /> : <Share2 aria-hidden="true" />}
+            <h3>{selectedGame.status === "PUBLISHED" ? "공유마당에서 확인하기" : "공유마당에 발행하기"}</h3>
+          </div>
+          <p className="preview-action__copy">{selectedGame.status === "PUBLISHED" ? "공개 중 · 방 생성은 대시보드에서" : selectedGame.description || "설명 입력 후 발행하면 검색됩니다."}</p>
+          {selectedGame.status === "PUBLISHED" ? (
+            <button className="button button--quiet button--full" type="button" onClick={() => setView("library")}><Library aria-hidden="true" /> 공유마당에서 보기</button>
+          ) : (
+            <button className="button button--primary button--full" type="button" onClick={() => void publishGame()} disabled={publishBusy || !auth.user}><Share2 aria-hidden="true" /> {publishBusy ? "발행 중" : "공유마당에 발행하기"}</button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="app-shell">
       {isPlayer && realtime.roomState ? (
-        <PlayerView realtime={realtime} gameTitle={realtime.roomState.gameTitle} />
+        <PlayerView realtime={realtime} gameTitle={realtime.roomState.gameTitle} hiddenRoomId={resultHiddenForRoomId} onDismissRoom={dismissRoomResult} />
       ) : (
       <>
       <HeaderNav
@@ -950,7 +1169,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
               <div>
                 <p className="workspace-date">{auth.user ? `${auth.user.displayName} 선생님의 게임 테이블` : "교사용 게임 스튜디오 · 로그인하면 게임이 저장됩니다"}</p>
                 <h1>오늘의 게임 스테이지</h1>
-                <p>보드를 고르고 수업 방을 열면, 학생 기기의 말이 같은 판 위에서 움직입니다.</p>
+                <p>보드를 고르고 방을 열면, 학생 말이 같은 판에서 함께 움직입니다.</p>
               </div>
               <div className="workspace-intro__actions">
                 <button className="button button--outline" type="button" onClick={() => setJoinOpen(true)}><Users aria-hidden="true" /> 코드 참가</button>
@@ -981,7 +1200,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                     ))}
                   </div>
                 ) : games.length === 0 ? (
-                  <p className="content-empty__hint">아직 만든 게임이 없습니다. 첫 수업 게임을 만들어 보세요.</p>
+                  <p className="content-empty__hint">아직 만든 게임이 없습니다. 첫 게임을 만들어 보세요.</p>
                 ) : (
                   <div className="data-swap" key="list-ready">
                     {games.map((game) => (
@@ -1091,15 +1310,34 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                       } : undefined}
                       onAnimationStateChange={setBoardAnimating}
                     />
-                    {realtime.roomState && realtime.roomState.status !== "LOBBY" && !boardAnimating && (
-                      <div className="play-stage__overlay">
+                    {realtime.roomState && realtime.roomState.status !== "LOBBY" && (
+                      <div
+                        className={`play-stage__overlay${realtime.roomState.status === "FINALIZED" && resultHiddenForRoomId === realtime.roomState.roomId ? " is-dismissed" : ""}`}
+                        style={realtime.roomState.status !== "FINALIZED" && boardAnimating ? { display: "none" } : undefined}
+                        role={realtime.roomState.status === "FINALIZED" ? "button" : undefined}
+                        tabIndex={realtime.roomState.status === "FINALIZED" ? 0 : undefined}
+                        aria-label={realtime.roomState.status === "FINALIZED" ? "결과 모달 닫기" : undefined}
+                        onClick={() => {
+                          if (realtime.roomState?.status === "FINALIZED" && realtime.roomState) dismissRoomResult(realtime.roomState.roomId);
+                        }}
+                        onKeyDown={(event) => {
+                          if (realtime.roomState?.status !== "FINALIZED") return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            if (realtime.roomState) dismissRoomResult(realtime.roomState.roomId);
+                          }
+                        }}
+                      >
+                        {realtime.roomState?.status === "FINALIZED" && resultHiddenForRoomId === realtime.roomState.roomId ? null : (
                         <RoomPrompt
                           key={realtime.roomState.activeQuestion?.id ?? realtime.roomState.lastEvent.type}
                           state={realtime.roomState}
                           canAnswer={realtime.canAnswer}
                           onAnswer={realtime.answer}
                           viewerId={realtime.participantId}
+                          onDismiss={() => { if (realtime.roomState) dismissRoomResult(realtime.roomState.roomId); }}
                         />
+                        )}
                       </div>
                     )}
                   </div>
@@ -1328,64 +1566,35 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
             <div className="editor-header__actions">
               <span className="save-state"><Check aria-hidden="true" /> 저장됨</span>
               <button className="button button--quiet" type="button" onClick={() => setEditorSection("content")}><Grid2X2 aria-hidden="true" /> 문제·카드</button>
-              <button className="button button--primary" type="button" onClick={() => void prepareRoom()} disabled={realtimeBusy}><Send /> {realtimeBusy ? "준비 중" : "발행 준비"}</button>
+              <button className="button button--primary" type="button" onClick={() => setEditorSection("publish")}><Share2 aria-hidden="true" /> 발행</button>
             </div>
           </header>
           <div className="editor-layout">
             <aside className={`editor-steps reveal${stepsCollapsed ? " is-collapsed" : ""}`} style={{ "--i": 0 } as React.CSSProperties} aria-label="게임 제작 단계">
               <div className="editor-steps__head">
                 <h2>제작 단계</h2>
-                <span className="editor-steps__count">{currentEditorStep}/5</span>
+                <span className="editor-steps__count">{currentEditorStep}/4</span>
                 <button className="editor-steps__toggle" type="button" onClick={() => setStepsCollapsed((current) => !current)} aria-expanded={!stepsCollapsed} aria-label={stepsCollapsed ? "제작 단계 펼치기" : "제작 단계 접기"}><ChevronDown aria-hidden="true" /></button>
               </div>
-              {[
-                ["기본 설정", Check], ["맵 템플릿", Check], ["문제·카드", BookOpen], ["테스트 플레이", Play], ["발행", Share2],
-              ].map(([label, Icon], index) => {
-                const stepNumber = index + 1;
-                const StepIcon = Icon as typeof Check;
-                const isCurrent = stepNumber === currentEditorStep;
-                const isComplete = index < 2 && !isCurrent;
-                return <button key={String(label)} type="button" className={`${isCurrent ? "is-current" : ""}${isComplete ? " is-complete" : ""}${index >= 3 ? " is-future" : ""}`} onClick={() => { if (index === 0 || index === 1) setEditorSection("settings"); else if (index === 2) setEditorSection("content"); else setLiveMessage(`${String(label)} 편집 단계는 다음 구현에서 연결됩니다.`); }}><span className="step-number" aria-hidden="true">{isComplete ? <Check /> : stepNumber}</span><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
-              })}
+              <div className="editor-steps__list">
+                {[
+                  ["게임 설정", Settings], ["문제·카드", BookOpen], ["테스트 플레이", Play], ["발행", Share2],
+                ].map(([label, Icon], index) => {
+                  const stepNumber = index + 1;
+                  const StepIcon = Icon as typeof Check;
+                  const isCurrent = stepNumber === currentEditorStep;
+                  const isComplete = stepNumber < currentEditorStep;
+                  const isFuture = stepNumber > currentEditorStep;
+                  return <button key={String(label)} type="button" className={`${isCurrent ? "is-current" : ""}${isComplete ? " is-complete" : ""}${isFuture ? " is-future" : ""}`} onClick={() => { if (stepNumber === 1) setEditorSection("settings"); else if (stepNumber === 2) setEditorSection("content"); else if (stepNumber === 3) setEditorSection("playtest"); else setEditorSection("publish"); }}><span className="step-number" aria-hidden="true">{isComplete ? <Check /> : stepNumber}</span><StepIcon aria-hidden="true" /><span>{String(label)}</span></button>;
+                })}
+              </div>
             </aside>
             <section className="editor-content reveal" style={{ "--i": 1 } as React.CSSProperties} aria-label="편집 내용">
-              {editorSection === "settings" ? (
-                <GameSettingsEditor
-                  key={selectedGame.id}
-                  game={{
-                    id: selectedGame.id,
-                    title: selectedGame.title,
-                    description: selectedGame.description,
-                    subject: selectedGame.subject,
-                    grade: selectedGame.grade,
-                    template: selectedGame.template,
-                    skin: selectedGame.skin,
-                    victoryMode: selectedGame.victoryMode ?? "AUTO",
-                    targetScore: selectedGame.targetScore ?? 100,
-                    maxRounds: selectedGame.maxRounds ?? 10,
-                    playMode: selectedGame.playMode ?? "INDIVIDUAL",
-                    teamCount: selectedGame.teamCount ?? 2,
-                  }}
-                  onSaved={updateGameSettings}
-                  onMessage={setLiveMessage}
-                />
-              ) : (
-                <ContentEditor
-                  gameId={selectedGame.id}
-                  enabled={persistedGameIds.has(selectedGame.id)}
-                  tileTypes={editorTileTypes}
-                  selectedTileIndex={selectedTileIndex}
-                  onSelectTile={setSelectedTileIndex}
-                  onTileTypeChange={handleEditorTileTypeChange}
-                  onMessage={setLiveMessage}
-                  onCountsChange={updateContentCounts}
-                  onMarksChange={setTileMarks}
-                />
-              )}
+              {renderEditorBody()}
             </section>
             <aside className="editor-board reveal" style={{ "--i": 2 } as React.CSSProperties} aria-label="맵 미리보기">
               <div className="editor-board__head">
-                <h2>{editorSection === "content" ? "문제·카드 — 맵에서 칸을 선택하세요" : "맵 미리보기"}</h2>
+                <h2>{editorBoardHeading}</h2>
                 <span className="editor-board__skin"><Palette aria-hidden="true" /> {skinNames[skin]}</span>
               </div>
               <GameBoard
@@ -1399,13 +1608,9 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
                 editMode={editorEditMode}
                 selectedTileIndex={editorEditMode ? selectedTileIndex : null}
                 onTileClick={editorEditMode ? handleEditorTileClick : undefined}
-                tileMarks={tileMarks}
+                tileMarks={editorEditMode ? tileMarks : []}
               />
-              <p className="editor-board__hint">
-                {editorSection === "content"
-                  ? "칸을 누르면 유형과 문제·카드를 함께 편집합니다. 유형 변경은 자동 저장돼요."
-                  : "지정한 칸에서 문제와 카드가 출제됩니다."}
-              </p>
+              <p className="editor-board__hint">{editorBoardHint}</p>
             </aside>
           </div>
         </main>
@@ -1416,7 +1621,7 @@ export function StudioApp({ auth }: { auth: StudioAuth }) {
           <span>MAKE THE LESSON MOVE · 24 TILES · ONE CLASS · </span>
           <span>MAKE THE LESSON MOVE · 24 TILES · ONE CLASS · </span>
         </div>
-        <p className="sr-only">Classloop · 수업을 움직이는 24칸 보드게임 스튜디오</p>
+        <p className="sr-only">보드런 · 수업을 움직이는 24칸 보드게임 스튜디오</p>
       </footer> */}
 
       <DialogShell open={createOpen} onClose={() => setCreateOpen(false)} labelledBy="create-dialog-title" className="create-dialog">

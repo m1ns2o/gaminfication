@@ -1,7 +1,7 @@
 import { getTeacherFromCookie } from "./session";
 
 export async function getCreatorId(request: Request) {
-  if (request.headers.get("x-classloop-anonymous") === "true") return null;
+  if (request.headers.get("x-boardrun-anonymous") === "true") return null;
   return (await getTeacherFromCookie(request.headers.get("cookie")))?.userId ?? null;
 }
 

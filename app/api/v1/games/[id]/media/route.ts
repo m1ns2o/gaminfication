@@ -12,7 +12,7 @@ const allowedImageTypes = new Map([
   ["image/gif", "gif"],
 ]);
 
-// 문제 이미지 업로드 — R2(classloop-media)에 저장하고 앱 제공 경로를 돌려준다.
+// 문제 이미지 업로드 — R2(boardrun-media)에 저장하고 앱 제공 경로를 돌려준다.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ownerId = await getCreatorId(request);
   if (!ownerId) return unauthorized();

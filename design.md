@@ -1,8 +1,8 @@
-# Classloop design system
+# 보드런 BoardRun design system
 
 ## Direction
 
-Classloop uses a custom **Classroom Adventure Table** system: bright toy diorama, chunky, tactile, classroom-safe. It borrows the readable turn staging of casual mobile board games without copying Monopoly GO artwork, board geometry, icons, characters, or economy.
+보드런 BoardRun uses a custom **Classroom Adventure Table** system: bright toy diorama, chunky, tactile, classroom-safe. It borrows the readable turn staging of casual mobile board games without copying Monopoly GO artwork, board geometry, icons, characters, or economy.
 
 - Audience: teachers hosting a class and students joining from shared or personal devices.
 - Primary job: keep the board and the current action readable before exposing authoring controls.

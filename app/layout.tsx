@@ -31,24 +31,40 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: {
-      default: "Classloop · 수업이 보드게임이 되는 곳",
-      template: "%s · Classloop",
+      default: "보드런 BoardRun · 수업이 보드게임이 되는 곳",
+      template: "%s · 보드런 BoardRun",
     },
     description: "교사가 만들고, 학생이 코드로 참여하는 실시간 교육 보드게임 스튜디오입니다.",
+    keywords: ["보드런", "BoardRun", "교육 보드게임", "수업 게임", "퀴즈 보드게임", "실시간 수업", "학급 게임", "게이미피케이션"],
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+    alternates: {
+      canonical: "/",
+    },
     icons: {
       icon: "/favicon.svg",
       shortcut: "/favicon.svg",
     },
     openGraph: {
-      title: "Classloop · 수업이 보드게임이 되는 곳",
+      title: "보드런 BoardRun · 수업이 보드게임이 되는 곳",
       description: "24칸 맵을 만들고, 코드로 모여, 한 수업을 함께 완주하세요.",
-      images: [{ url: new URL("/og.png", metadataBase).toString(), width: 1730, height: 909, alt: "Classloop 24칸 교육 보드게임" }],
+      url: "/",
+      siteName: "보드런 BoardRun",
+      images: [{ url: new URL("/og.png", metadataBase).toString(), width: 1730, height: 909, alt: "보드런 24칸 교육 보드게임" }],
       type: "website",
       locale: "ko_KR",
     },
     twitter: {
       card: "summary_large_image",
-      title: "Classloop · 수업이 보드게임이 되는 곳",
+      title: "보드런 BoardRun · 수업이 보드게임이 되는 곳",
       description: "교사가 만들고 학생이 코드로 참여하는 실시간 교육 보드게임 스튜디오",
       images: [new URL("/og.png", metadataBase).toString()],
     },
@@ -60,9 +76,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "보드런 BoardRun",
+    alternateName: ["BoardRun", "보드런"],
+    inLanguage: "ko",
+    applicationCategory: "EducationalApplication",
+    operatingSystem: "Web",
+    description: "교사가 만들고, 학생이 코드로 참여하는 실시간 교육 보드게임 스튜디오입니다.",
+  };
   return (
     <html lang="ko">
       <body className={`${korean.variable} ${bricolage.variable} ${geistMono.variable}`}>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
         {children}
       </body>
     </html>

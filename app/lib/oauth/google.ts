@@ -8,7 +8,7 @@ export { safeAuthReturnTo } from "../auth-validation";
 const GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo";
-const GOOGLE_FLOW_COOKIE = "classloop_google_oauth";
+const GOOGLE_FLOW_COOKIE = "boardrun_google_oauth";
 const GOOGLE_CALLBACK_PATH = "/api/v1/auth/google/callback";
 const GOOGLE_FLOW_MAX_AGE_SECONDS = 10 * 60;
 const encoder = new TextEncoder();
@@ -110,7 +110,8 @@ function secureCookieSuffix(requestUrl: string) {
 }
 
 export function clearGoogleOAuthCookie(requestUrl: string) {
-  return `${GOOGLE_FLOW_COOKIE}=; Path=/api/v1/auth/google; HttpOnly; SameSite=Lax; Max-Age=0${secureCookieSuffix(requestUrl)}`;
+  const suffix = secureCookieSuffix(requestUrl);
+  return `${GOOGLE_FLOW_COOKIE}=; Path=/api/v1/auth/google; HttpOnly; SameSite=Lax; Max-Age=0${suffix}`;
 }
 
 export async function beginGoogleOAuth(request: Request, returnToValue: string | null) {
@@ -248,7 +249,8 @@ export async function finishGoogleOAuth(request: Request): Promise<GoogleTeacher
   const callback = new URL(request.url);
   const code = callback.searchParams.get("code") ?? "";
   const state = callback.searchParams.get("state") ?? "";
-  const flow = decodeFlow(cookieValue(request.headers.get("cookie"), GOOGLE_FLOW_COOKIE));
+  const cookieHeader = request.headers.get("cookie");
+  const flow = decodeFlow(cookieValue(cookieHeader, GOOGLE_FLOW_COOKIE));
   if (!flow || !state || !constantTimeEqual(flow.state, state)) throw new GoogleOAuthError("oauth_state_invalid");
   if (!code || code.length > 4096) throw new GoogleOAuthError("oauth_code_invalid");
   const accessToken = await exchangeAuthorizationCode(request, code, flow.verifier);

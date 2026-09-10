@@ -16,11 +16,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const now = new Date().toISOString();
     const [version] = await db.insert(gameVersions).values({
       id: crypto.randomUUID(), gameId: id, versionNumber, immutable: true,
-      reviewStatus: game.visibility === "PUBLIC" ? "PENDING_REVIEW" : "PRIVATE",
+      reviewStatus: "PUBLIC",
       definitionJson: JSON.stringify({ template: game.template, skin: game.skin, questionsCount: game.questionsCount, cardsCount: game.cardsCount }),
       createdAt: now,
     }).returning();
-    await db.update(games).set({ status: game.visibility === "PUBLIC" ? "PENDING_REVIEW" : "PUBLISHED", updatedAt: now }).where(eq(games.id, id));
+    await db.update(games).set({ status: "PUBLISHED", visibility: "PUBLIC", updatedAt: now }).where(eq(games.id, id));
     return Response.json({ version });
   } catch (error) {
     return routeError(error);

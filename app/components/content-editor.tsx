@@ -173,7 +173,7 @@ function ContentForm({
           {(card.effectType === "MOVE_FORWARD" || card.effectType === "MOVE_BACK" || card.effectType === "SCORE_BONUS") && (
             <label><span>{card.effectType === "SCORE_BONUS" ? "추가 점수" : "이동 칸 수"}</span><input type="number" min="1" max={card.effectType === "SCORE_BONUS" ? 100 : 12} value={card.effectValue} onChange={(event) => setCard((current) => ({ ...current, effectValue: Number(event.target.value) }))} /></label>
           )}
-          <label><span>참가자 안내</span><textarea value={card.description} onChange={(event) => setCard((current) => ({ ...current, description: event.target.value }))} placeholder="카드를 뽑았을 때 보여 줄 안내" /></label>
+          <label><span>안내</span><textarea value={card.description} onChange={(event) => setCard((current) => ({ ...current, description: event.target.value }))} placeholder="뽑았을 때 보여줄 문구" /></label>
           <div className="answer-preview answer-preview--card"><Sparkles aria-hidden="true" /><span><strong>{card.title || "카드 미리보기"}</strong><small>{card.description || `${cardEffectLabels[card.effectType]} 효과`}</small></span></div>
         </>
       ) : (
@@ -182,8 +182,8 @@ function ContentForm({
             <div className="form-field"><span>문제 유형</span><SelectMenu label="문제 유형" icon={CircleHelp} value={question.type} options={Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label }))} onChange={(value) => setQuestion((current) => ({ ...current, type: value as QuestionType, correctAnswer: "" }))} /></div>
             <div className="form-field"><span>풀이 방식</span><SelectMenu label="풀이 방식" icon={Users} value={question.answerMode} options={[{ value: "TURN", label: "현재 차례만" }, { value: "ALL", label: "전원 동시" }]} onChange={(value) => setQuestion((current) => ({ ...current, answerMode: value as AnswerMode }))} /></div>
           </div>
-          <label><span>질문</span><textarea value={question.prompt} onChange={(event) => setQuestionValue("prompt", event.target.value)} placeholder="이 칸에서 낼 질문을 입력하세요." required /></label>
-          <div className="form-field"><span>문제 이미지 (선택)</span>
+          <label><span>질문</span><textarea value={question.prompt} onChange={(event) => setQuestionValue("prompt", event.target.value)} placeholder="질문 입력" required /></label>
+          <div className="form-field"><span>이미지 (선택)</span>
             <span className="question-image">
               {question.imageUrl ? (
                 <span className="question-image__preview">
@@ -200,14 +200,14 @@ function ContentForm({
           {question.type === "MULTIPLE_CHOICE" && (
             <fieldset className="choice-editor"><legend>보기와 정답</legend>{question.options.map((option, index) => <label key={index}><input type="radio" name="correct-option" checked={correctOptionIndex === index} onChange={() => setCorrectOptionIndex(index)} aria-label={`${index + 1}번 보기를 정답으로 선택`} /><span>{index + 1}</span><input value={option} onChange={(event) => setQuestion((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? event.target.value : item) }))} placeholder={`${index + 1}번 보기`} required={index < 2} /></label>)}</fieldset>
           )}
-          {question.type === "SHORT_ANSWER" && <label><span>허용 정답</span><input value={question.correctAnswer} onChange={(event) => setQuestionValue("correctAnswer", event.target.value)} placeholder="예: 규장각 (쉼표로 복수 정답)" required /></label>}
+          {question.type === "SHORT_ANSWER" && <label><span>정답</span><input value={question.correctAnswer} onChange={(event) => setQuestionValue("correctAnswer", event.target.value)} placeholder="예: 규장각 (쉼표 구분)" required /></label>}
           {question.type === "OX" && <fieldset className="ox-editor"><legend>정답</legend>{["O", "X"].map((value) => <label key={value}><input type="radio" name="ox-answer" value={value} checked={question.correctAnswer === value} onChange={() => setQuestionValue("correctAnswer", value)} /><span>{value}</span></label>)}</fieldset>}
           <div className="form-row form-row--split">
             <label><span>배점</span><input type="number" min="1" max="100" value={question.points} onChange={(event) => setQuestionValue("points", Number(event.target.value))} /></label>
             <div className="form-field"><span>제한 시간</span><SelectMenu label="제한 시간" icon={Clock3} value={String(question.timeLimitSeconds)} options={[10, 20, 30, 45, 60, 90, 120].map((seconds) => ({ value: String(seconds), label: `${seconds}초` }))} onChange={(value) => setQuestionValue("timeLimitSeconds", Number(value))} /></div>
           </div>
-          <label><span>정답 해설 (선택)</span><input value={question.explanation} onChange={(event) => setQuestionValue("explanation", event.target.value)} placeholder="정답 공개 때 보여 줄 설명" /></label>
-          <div className="answer-preview"><CircleHelp aria-hidden="true" /><span><strong>정답은 출제자만 확인합니다.</strong><small>{inTileMode ? `${tileIndex + 1}번 칸 도착 시 출제됩니다.` : "공용 풀에서 순환 출제됩니다."}</small></span></div>
+          <label><span>해설 (선택)</span><input value={question.explanation} onChange={(event) => setQuestionValue("explanation", event.target.value)} placeholder="정답 공개 시 표시" /></label>
+          <div className="answer-preview"><CircleHelp aria-hidden="true" /><span><strong>정답 비공개</strong><small>{inTileMode ? `${tileIndex + 1}번 도착 시 출제` : "순환 출제"}</small></span></div>
         </>
       )}
       <div className="question-form__actions">
@@ -366,27 +366,25 @@ export function ContentEditor({
 
   const TileIcon = tileTypeIcons[selectedTileType];
   const tileStatus = selectedTileType === "QUIZ"
-    ? currentQuestion ? "저장된 문제를 수정해요" : "문제와 정답을 입력하세요"
+    ? currentQuestion ? "저장된 문제 수정" : "새 문제 입력"
     : selectedTileType === "EVENT" || selectedTileType === "BONUS"
-      ? currentCard ? "저장된 카드를 수정해요" : "카드 효과를 입력하세요"
-      : selectedTileType === "REST" ? "휴식 칸 — 문제·카드가 발동하지 않아요" : "시작 칸 — 콘텐츠가 없어요";
+      ? currentCard ? "저장된 카드 수정" : "새 카드 입력"
+      : selectedTileType === "REST" ? "효과 없음" : "입력 없음";
 
   return (
     <section className="question-editor content-tile-editor" aria-labelledby="content-editor-heading">
       <div className="question-editor__head">
         <div>
           <h2 id="content-editor-heading">문제·카드</h2>
-          <p>맵에서 칸을 선택하면 유형과 콘텐츠를 함께 편집합니다.</p>
+          <p>칸을 눌러 편집</p>
         </div>
         <span className="content-tile-editor__coverage">문제 {questions.length} · 카드 {cards.length}</span>
       </div>
 
       <div className="content-tile-editor__tile">
-        <span className="tile-inspector__number">{String(Math.max(0, selectedTileIndex) + 1).padStart(2, "0")}</span>
         <span className={`tile-inspector__mark tile-inspector__mark--${selectedTileType.toLowerCase()}`} aria-hidden="true"><TileIcon /></span>
         <span className="tile-inspector__copy">
-          <span className="mono-label">TILE {String(Math.max(0, selectedTileIndex) + 1).padStart(2, "0")}</span>
-          <strong>{Math.max(0, selectedTileIndex) + 1}번 칸 · {tileTypeLabels[selectedTileType]}</strong>
+          <strong>{Math.max(0, selectedTileIndex) + 1}번 · {tileTypeLabels[selectedTileType]}</strong>
           <small>{tileStatus}</small>
         </span>
         <span className="content-tile-editor__type">
@@ -400,7 +398,7 @@ export function ContentEditor({
       {tileKind === null && (
         <div className="tile-inspector__lock" role="note">
           <BookOpen aria-hidden="true" />
-          <span>{selectedTileType === "REST" ? "휴식 칸에는 문제·카드가 발동하지 않아요. 칸 유형을 바꿔 주세요." : "시작 칸에는 콘텐츠를 넣지 않습니다."}</span>
+          <span>{selectedTileType === "REST" ? "휴식 칸은 건너뜁니다" : "시작 칸은 비워 둡니다"}</span>
         </div>
       )}
 

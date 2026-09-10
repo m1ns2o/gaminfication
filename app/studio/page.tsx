@@ -7,6 +7,10 @@ import { getTeacherFromCookie } from "../lib/session";
 export const metadata: Metadata = {
   title: "교사 대시보드",
   description: "수업 게임을 만들고 실시간 방을 운영하는 교사용 작업대입니다.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function StudioPage() {

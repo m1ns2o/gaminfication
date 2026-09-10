@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(tail -n 5 dev-server.log 2>/dev/null; echo \"---\"; netstat -ano | grep -E \":(3000|8787)\" | head -5)",
+      "powershell",
+      "Shell(npm:*)",
+      "Shell(curl -s http://localhost:3000 2 >& 1)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

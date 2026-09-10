@@ -1,4 +1,4 @@
-# Classloop realtime architecture
+# 보드런 BoardRun realtime architecture
 
 ## Decision
 

@@ -1,12 +1,12 @@
 <!-- Hallmark · pre-emit critique: P5 H5 E4 S5 R4 V5 -->
 
-# Classloop 상용 보드게임 디자인 레퍼런스
+# 보드런 BoardRun 상용 보드게임 디자인 레퍼런스
 
 조사일: 2026-08-29
 
 ## 조사 목적
 
-Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에서 함께 플레이하는 완성도 높은 디지털 보드게임으로 개편하기 위한 레퍼런스다. 아래 자료에서는 브랜드 그래픽이나 캐릭터를 복제하지 않고 다음 원리만 추출한다.
+보드런 BoardRun을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에서 함께 플레이하는 완성도 높은 디지털 보드게임으로 개편하기 위한 레퍼런스다. 아래 자료에서는 브랜드 그래픽이나 캐릭터를 복제하지 않고 다음 원리만 추출한다.
 
 - 게임판을 하나의 물리적 무대로 보이게 만드는 방법
 - 주사위, 말 이동, 칸 도착, 카드 공개를 한 턴의 연속 연출로 만드는 방법
@@ -61,7 +61,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 
 - 링크: [THE GAME OF LIFE](https://www.marmaladegamestudio.com/games/game-of-life), [THE GAME OF LIFE 2 프레스킷](https://www.marmaladegamestudio.com/the-game-of-life-2-press-kit)
 - 볼 것: 실제 플라스틱 보드의 광택과 두께, 회전판과 말의 물성, 밝지만 유아용으로 보이지 않는 색 구성
-- 가져올 것: Classloop 게임판을 브라우저 UI가 아니라 실제 제품 상자에서 꺼낸 보드처럼 보이게 하는 재질감
+- 가져올 것: 보드런 BoardRun 게임판을 브라우저 UI가 아니라 실제 제품 상자에서 꺼낸 보드처럼 보이게 하는 재질감
 
 ## B. 파티게임의 턴 연출과 반응
 
@@ -70,7 +70,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 - 링크: [공식 플레이 가이드](https://play.nintendo.com/explore/super-mario-party-jamboree/), [보드 갤러리](https://www.nintendo.com/en-gb/Games/Nintendo-Switch-games/Super-Mario-Party-Jamboree-2591147.html)
 - 볼 것: 캐릭터가 주사위 블록을 직접 치는 준비 동작, 결과 숫자가 읽히는 정지 시간, 칸에 따라 공간 전체가 반응하는 이벤트
 - 가져올 것: 다른 플레이어의 턴에도 이모지 반응을 보낼 수 있는 장치, 기다리는 시간을 관전 경험으로 바꾸는 방식
-- Classloop 적용: 학생은 주사위를 누르고, 다른 학생은 짧은 리액션만 보낼 수 있게 한다. 퀴즈가 나오면 보드 중앙이 무대로 전환된다.
+- 보드런 BoardRun 적용: 학생은 주사위를 누르고, 다른 학생은 짧은 리액션만 보낼 수 있게 한다. 퀴즈가 나오면 보드 중앙이 무대로 전환된다.
 
 ### Mario Party Superstars
 
@@ -82,7 +82,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 
 - 링크: [공식 게임 페이지와 스크린샷](https://www.marmaladegamestudio.com/games/exploding-kittens-2)
 - 볼 것: 카드가 덱에서 빠져나와 정면으로 회전하고, 그림이 애니메이션으로 살아난 뒤 효과가 보드에 적용되는 흐름
-- 가져올 것: Classloop의 보너스/방해 카드를 `작은 토스트`가 아니라 한 장의 수집 가능한 게임 카드로 표현
+- 가져올 것: 보드런 BoardRun의 보너스/방해 카드를 `작은 토스트`가 아니라 한 장의 수집 가능한 게임 카드로 표현
 - 버릴 것: 원작의 카드 프레임, 삽화, 카피 문체를 그대로 모방하는 것
 
 ### Clue / Cluedo
@@ -122,7 +122,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 - 링크: [공식 프레스킷](https://armello.com/_press/sheet.php?p=armello), [Steam 갤러리](https://store.steampowered.com/app/290340/Armello/)
 - 볼 것: 보드게임 규칙을 영화적 조명, 낮/밤 변화, 주사위 전투, 카드로 확장한 방식
 - 가져올 것: 학습 맵도 시간대나 단원 진행에 따라 조명과 주변 환경이 변하게 만들 수 있다.
-- 주의: Classloop에는 지나치게 어둡고 복잡한 HUD가 맞지 않으므로 연출 강도만 참고한다.
+- 주의: 보드런 BoardRun에는 지나치게 어둡고 복잡한 HUD가 맞지 않으므로 연출 강도만 참고한다.
 
 ### 추가 관찰 목록
 
@@ -132,7 +132,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 - [Welcome to Everdell](https://www.direwolfdigital.com/welcome-to-everdell/) — 어린 사용자에게 규칙을 단순화해 보여 주면서도 장난감 같은 제품 품질을 유지하는 사례다.
 - [Dune: Imperium Digital](https://www.direwolfdigital.com/dune-imperium-digital/) — 정보가 많은 전략 보드게임에서 행동 가능한 위치와 카드 선택을 강조하는 사례. 교사 관리 화면의 고급 모드에만 참고한다.
 - [Tabletopia](https://tabletopia.com/about) — 브라우저에서 실제 테이블, 좌석, 카드 셔플, 턴 추적을 구현한 가상 보드게임 플랫폼. `게임판을 웹페이지가 아니라 공유 테이블로 느끼게 하는 방법`을 확인하기 좋다.
-- [Tabletop Simulator 보드 가이드](https://kb.tabletopsimulator.com/custom-content/custom-board/) — 커스텀 보드와 물리 오브젝트를 분리하는 구조. Classloop 맵 편집기에서 바닥 아트와 규칙 타일 데이터를 분리하는 참고 사례다.
+- [Tabletop Simulator 보드 가이드](https://kb.tabletopsimulator.com/custom-content/custom-board/) — 커스텀 보드와 물리 오브젝트를 분리하는 구조. 보드런 BoardRun 맵 편집기에서 바닥 아트와 규칙 타일 데이터를 분리하는 참고 사례다.
 
 ## D. 교육용 게임의 교사·학생 흐름
 
@@ -146,7 +146,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 
 - 링크: [공식 실시간 세션 모드](https://support.quizizz.com/hc/en-us/articles/360030685632-Live-Session-Modes-on-Quizizz), [세션 도움말](https://support.quizizz.com/hc/en-us/categories/16359192104473-Host-Assign-Join-Sessions)
 - 볼 것: 학생 자율 속도, 교사 진행 속도, 팀전, 정확도 중심 모드를 같은 콘텐츠에서 선택하는 구조
-- 가져올 것: Classloop도 `턴 플레이`, `모두 답하기`, `팀 협동`, `교사 진행`을 맵과 별개인 세션 옵션으로 둔다.
+- 가져올 것: 보드런 BoardRun도 `턴 플레이`, `모두 답하기`, `팀 협동`, `교사 진행`을 맵과 별개인 세션 옵션으로 둔다.
 
 ### Kahoot!
 
@@ -166,7 +166,7 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 
 - 링크: [Apple Human Interface Guidelines — Game Center](https://developer.apple.com/design/human-interface-guidelines/game-center)
 - 가져올 것: 방 코드는 읽기 쉽고 복사/공유가 즉시 가능해야 하며, 참여 상태와 초대 상태를 명확히 구분한다.
-- Classloop 적용: 학생 로그인 없이 `6자리 코드 + 닉네임`, 교사는 QR과 링크를 동시에 제공한다.
+- 보드런 BoardRun 적용: 학생 로그인 없이 `6자리 코드 + 닉네임`, 교사는 QR과 링크를 동시에 제공한다.
 
 ### Game UI Database / Interface In Game
 
@@ -188,9 +188,9 @@ Classloop을 일반적인 교육 웹 대시보드가 아니라, 여러 기기에
 - [Kenney Assets](https://kenney.nl/assets/) — Boardgame Pack, UI Pack, Interface Sounds 등. 개별 라이선스를 확인하되 대표 번들은 CC0로 제공된다.
 - [Quaternius](https://quaternius.com/) — 스타일라이즈드 3D 환경, 캐릭터, 카드 키트. [FAQ](https://quaternius.com/faq.html)에 따르면 CC0이며 상업·교육 프로젝트에서 사용 가능하다.
 - [Poly Haven](https://polyhaven.com/) — 목재, 종이, 천, 환경 조명을 위한 PBR 텍스처와 HDRI. [라이선스](https://polyhaven.com/license)는 CC0다.
-- 사용 원칙: 여러 라이브러리의 스타일을 섞지 않는다. 한 종류를 베이스로 삼고 색, 비율, 재질을 Classloop 전용으로 다시 조정한다.
+- 사용 원칙: 여러 라이브러리의 스타일을 섞지 않는다. 한 종류를 베이스로 삼고 색, 비율, 재질을 보드런 BoardRun 전용으로 다시 조정한다.
 
-## Classloop에 가장 적합한 합성 방향
+## 보드런 BoardRun에 가장 적합한 합성 방향
 
 ### 권장안: Classroom Adventure Table
 
@@ -226,7 +226,7 @@ Wingspan과 Ticket to Ride처럼 종이, 목재, 금속 토큰의 재질을 강�
 
 ## 화면별 레퍼런스 체크리스트
 
-| Classloop 화면 | 1순위 레퍼런스 | 확인할 항목 |
+| 보드런 BoardRun 화면 | 1순위 레퍼런스 | 확인할 항목 |
 |---|---|---|
 | 홈/게임 라이브러리 | Blooket, Kahoot | 만든 퀴즈와 게임 모드의 분리, 최근 사용 항목 |
 | 게임 만들기 | Blooket, Quizizz | 문제 세트 → 맵 → 규칙 → 미리보기의 단계 |
@@ -264,4 +264,4 @@ Wingspan과 Ticket to Ride처럼 종이, 목재, 금속 토큰의 재질을 강�
 - 상용 게임의 스크린샷은 디자인 분석용 링크로만 남기고 프로젝트 자산에 포함하지 않는다.
 - 레퍼런스에서 가져오는 것은 화면 계층, 연출 타이밍, 카메라 문법, 상호작용 원리다.
 - 외부 자산은 다운로드 시점의 원본 라이선스 파일을 함께 보관한다.
-- CC0라도 서로 다른 아트 스타일을 그대로 섞지 않고 Classloop 전용 팔레트와 재질로 통일한다.
+- CC0라도 서로 다른 아트 스타일을 그대로 섞지 않고 보드런 BoardRun 전용 팔레트와 재질로 통일한다.

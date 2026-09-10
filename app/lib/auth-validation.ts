@@ -16,7 +16,7 @@ export function safeAuthReturnTo(
   options: { reserved?: string[]; baseOrigin?: string } = {},
 ) {
   if (!value?.startsWith("/") || value.startsWith("//")) return "/";
-  const { reserved = ["/api/v1/auth/", "/login"], baseOrigin = "https://classloop.local" } = options;
+  const { reserved = ["/api/v1/auth/", "/login"], baseOrigin = "https://boardrun.local" } = options;
   try {
     const url = new URL(value, baseOrigin);
     if (url.origin !== baseOrigin) return "/";

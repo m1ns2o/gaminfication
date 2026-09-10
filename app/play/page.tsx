@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { StudioApp } from "../components/studio-app";
 
 export const metadata: Metadata = {
-  title: "게임 참가 · Classloop",
+  title: "게임 참가 · 보드런 BoardRun",
   description: "참가 코드로 입장한 수업 게임 화면입니다.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function PlayPage() {

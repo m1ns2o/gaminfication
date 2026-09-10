@@ -8,6 +8,10 @@ import { getTeacherFromCookie } from "../lib/session";
 export const metadata: Metadata = {
   title: "교사용 로그인",
   description: "Google 계정으로 안전하게 로그인하세요.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 function safeReturnTo(value: string | string[] | undefined) {
@@ -38,8 +42,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="auth-page">
-      <Link className="auth-brand" href="/" aria-label="Classloop 홈">
-        <span aria-hidden="true">C</span><strong>CLASSLOOP</strong>
+      <Link className="auth-brand" href="/" aria-label="보드런 홈">
+        <span aria-hidden="true">B</span><strong>BOARDRUN</strong>
       </Link>
       <section className="auth-panel" aria-labelledby="teacher-login-title">
         <div className="auth-panel__intro">
@@ -47,7 +51,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <h1 id="teacher-login-title">선생님의 게임 테이블로 돌아오세요</h1>
           <p>퀴즈 맵을 만들고, 실시간 방을 열고, 수업 결과를 한곳에서 관리합니다.</p>
           <ul>
-            <li><ShieldCheck aria-hidden="true" /> Google 로그인 비밀번호는 Classloop에 전달되거나 저장되지 않습니다.</li>
+            <li><ShieldCheck aria-hidden="true" /> Google 로그인 비밀번호는 보드런에 전달되거나 저장되지 않습니다.</li>
             <li><ShieldCheck aria-hidden="true" /> 브라우저에는 보호된 HttpOnly 세션만 저장됩니다.</li>
           </ul>
         </div>

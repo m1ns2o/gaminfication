@@ -9,12 +9,29 @@ import { RoomPrompt } from "./room-prompt";
 type PlayerViewProps = {
   realtime: ReturnType<typeof useGameRoom>;
   gameTitle: string;
+  hiddenRoomId?: string | null;
+  onDismissRoom?: (roomId: string) => void;
 };
 
 // 학생(참가자) 전용 화면 — 게임에 필요한 부분만 표시하고 편집·관리 UI는 숨김
-export function PlayerView({ realtime, gameTitle }: PlayerViewProps) {
+export function PlayerView({ realtime, gameTitle, hiddenRoomId = null, onDismissRoom }: PlayerViewProps) {
   const { roomState, participantId, canRoll, canAnswer, roomCode } = realtime;
   const [boardAnimating, setBoardAnimating] = useState(false);
+  if (roomState?.status === "FINALIZED" && hiddenRoomId === roomState.roomId) {
+    return (
+      <main className="player-view">
+        <header className="player-view__bar">
+          <div className="player-view__bar-left">
+            <span className="player-view__logo" aria-hidden="true">C</span>
+            <strong>{gameTitle}</strong>
+          </div>
+        </header>
+        <div className="player-view__layout">
+          <p className="player-roster__empty">종료된 게임입니다. 새 코드로 다시 참가하세요.</p>
+        </div>
+      </main>
+    );
+  }
   const me = roomState?.players.find((player) => player.id === participantId);
   const tokens = roomState?.players.map((player) => ({
     id: player.id,
@@ -86,6 +103,7 @@ export function PlayerView({ realtime, gameTitle }: PlayerViewProps) {
                 canAnswer={canAnswer}
                 onAnswer={realtime.answer}
                 viewerId={participantId}
+                onDismiss={roomState.status === "FINALIZED" && onDismissRoom ? () => onDismissRoom(roomState.roomId) : undefined}
               />
             </div>
           )}

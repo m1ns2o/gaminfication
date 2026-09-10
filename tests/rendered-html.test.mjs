@@ -16,7 +16,7 @@ test("build emits the vinext worker artifacts", async () => {
   ]);
 });
 
-test("Classloop page and worker expose the realtime room surface", async () => {
+test("BoardRun page and worker expose the realtime room surface", async () => {
   const [page, layout, studioPage, playPage, studio, styles, auth, googleOAuth, googleStart, googleCallback, login, schema, worker, wrangler, realtimeSmoke, realtimeLocal] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
@@ -42,7 +42,8 @@ test("Classloop page and worker expose the realtime room surface", async () => {
   assert.match(studioPage, /<StudioApp\s+auth=/);
   assert.match(studioPage, /redirect\("\/login\?returnTo=%2Fstudio"\)/);
   assert.match(playPage, /<StudioApp\s+auth=\{\{\s*user: null/);
-  assert.match(layout, /Classloop/);
+  assert.match(layout, /BoardRun/);
+  assert.match(layout, /보드런/);
   assert.match(studio, /useGameRoom\(\)/);
   assert.match(studio, /prepareRoom/);
   assert.match(auth, /HttpOnly; SameSite=Lax/);
@@ -61,7 +62,8 @@ test("Classloop page and worker expose the realtime room surface", async () => {
   assert.match(worker, /export \{ GameRoom \}/);
   assert.match(wrangler, /"GAME_ROOMS"/);
   assert.match(wrangler, /"new_sqlite_classes"/);
-  assert.match(realtimeSmoke, /CLASSLOOP_TEST_SESSION_TOKEN/);
+  assert.match(realtimeSmoke, /BOARDRUN_TEST_SESSION_TOKEN/);
+  assert.match(realtimeSmoke, /boardrun_teacher_session/);
   assert.match(realtimeLocal, /refuses to seed a non-local environment/);
   await assert.rejects(access(new URL("app/api/v1/auth/login/route.ts", root)));
   await assert.rejects(access(new URL("app/api/v1/auth/register/route.ts", root)));
