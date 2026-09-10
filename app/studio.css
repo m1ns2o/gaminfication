@@ -4800,6 +4800,21 @@
   inset-inline-end: 0;
 }
 
+/* 팝오버를 포탈로 띄울 때의 고정 앵커.
+ * 상위 요소의 transform/isolation/overflow 등이 만든 스택 컨텍스트에 갇혀
+ * 팝오버가 맵·보드 뒤로 가려지는 문제를 피하기 위해 body(또는 dialog) 최상위에 배치한다. */
+.filter-popover-anchor {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+
+.filter-popover-anchor > .filter-popover {
+  pointer-events: auto;
+}
+
 .filter-popover__group-label {
   display: block;
   padding: var(--space-2xs) var(--space-sm) var(--space-3xs);
